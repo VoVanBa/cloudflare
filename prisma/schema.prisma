@@ -13,7 +13,10 @@ model User {
   email         String         @unique
   name          String?
   role          UserRole       @default(CLIENT)
-  conversations Conversation[] // Với role = ADMIN, đây là các cuộc hội thoại họ đã tham gia trả lời
+  businessId    String? // Nếu là admin/employee thì thuộc về 1 business
+  business      Business?      @relation(fields: [businessId], references: [id])
+  conversations Conversation[]
+  messages      Message[]
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
   deletedAt     DateTime?
@@ -22,6 +25,7 @@ model User {
 model Business {
   id            String         @id @default(cuid())
   name          String
+  users         User[] // Danh sách admin/employee thuộc business này
   conversations Conversation[]
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
@@ -32,9 +36,9 @@ model Conversation {
   id         String     @id @default(cuid())
   business   Business   @relation(fields: [businessId], references: [id])
   businessId String
-  guest      Json
+  guestId    Int?
   clientType ClientType
-  user       User?      @relation(fields: [userId], references: [id]) // chỉ cần khi client là user hệ thống
+  user       User?      @relation(fields: [userId], references: [id])
   userId     Int?
   messages   Message[]
   createdAt  DateTime   @default(now())
@@ -51,9 +55,10 @@ model Message {
   senderType     SenderType
   content        String
   userId         Int? // Nếu là ADMIN gửi thì có userId
-  clientId       String? // Nếu là CLIENT gửi thì có clientId (authenticated/anonymous)
+  guestId        String? // Nếu là CLIENT gửi thì có guestId
   createdAt      DateTime     @default(now())
   deletedAt      DateTime?
+  User           User?        @relation(fields: [userId], references: [id])
 
   @@index([conversationId])
   @@index([createdAt])
