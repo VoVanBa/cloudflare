@@ -5,11 +5,11 @@ generator client {
 
 datasource db {
   provider = "sqlite"
-  url      = "file:./dev.db"
+  url      = "DATABASE_URL"
 }
 
 model User {
-  id            Int            @id @default(autoincrement())
+  id            String         @id @default(cuid())
   email         String         @unique
   name          String?
   role          UserRole       @default(CLIENT)
@@ -39,7 +39,7 @@ model Conversation {
   guestId    Int?
   clientType ClientType
   user       User?      @relation(fields: [userId], references: [id])
-  userId     Int?
+  userId     String?
   messages   Message[]
   createdAt  DateTime   @default(now())
   updatedAt  DateTime   @updatedAt
@@ -54,11 +54,12 @@ model Message {
   conversationId String
   senderType     SenderType
   content        String
-  userId         Int? // Nếu là ADMIN gửi thì có userId
+  userId         String? // Nếu là ADMIN gửi thì có userId
   guestId        String? // Nếu là CLIENT gửi thì có guestId
   createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
   deletedAt      DateTime?
-  User           User?        @relation(fields: [userId], references: [id])
+  user           User?        @relation(fields: [userId], references: [id])
 
   @@index([conversationId])
   @@index([createdAt])

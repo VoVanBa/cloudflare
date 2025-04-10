@@ -1,0 +1,38 @@
+# wrangler.toml
+
+name = "real-time"
+main = "src/index.ts"
+compatibility_date = "2025-04-09"
+compatibility_flags = ["nodejs_compat"]
+
+# Cấu hình D1 Databases
+[[d1_databases]]
+binding = "DB"
+database_name = "prisma-demo-db"
+database_id = "bfee1346-ed0d-47e2-ac06-4f1a2f88f50a"
+
+# Cấu hình Durable Objects
+[[durable_objects]]
+binding = "CHAT_ROOM"
+class_name = "ChatRoom"
+
+[durable_objects.migrations]
+new_classes = ["ChatRoom"]
+
+# Các phần bị comment trong JSON được giữ nguyên dưới dạng comment trong TOML
+# vars.MY_VAR = "my-variable"
+
+# [[kv_namespaces]]
+# binding = "MY_KV_NAMESPACE"
+# id = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
+# [[r2_buckets]]
+# binding = "MY_BUCKET"
+# bucket_name = "my-bucket"
+
+# [ai]
+# binding = "AI"
+
+# [observability]
+# enabled = true
+# head_sampling_rate = 1
