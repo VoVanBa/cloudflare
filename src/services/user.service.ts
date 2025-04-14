@@ -7,7 +7,7 @@ import {
   getUserById,
 } from "../repositories/user.repository";
 import { signToken, verifyToken } from "../untils/jwt";
-import * as bcrypt from "bcrypt";
+import * as bcrypt from "bcryptjs";
 export const validateUser = async (env: Env, email: string) => {
   const user = await getUserByEmail(env, email);
   if (!user) throw new Error("User not found");

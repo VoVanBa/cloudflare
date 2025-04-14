@@ -1,4 +1,5 @@
 import { CreateUserDto, UpdateUserDto } from "../dtos/request/user.dto";
+import { UserRole } from "../models/enums";
 import { User } from "../models/user";
 import { getPrismaClient } from "../untils/db";
 
@@ -7,6 +8,7 @@ export async function createUser(env: Env, data: CreateUserDto): Promise<User> {
   const user = await prisma.user.create({
     data: {
       ...data,
+      role: UserRole.CLIENT,
       createdAt: new Date(),
     },
   });

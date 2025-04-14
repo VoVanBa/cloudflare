@@ -1,43 +1,87 @@
-import { Conversation, Prisma } from "@prisma/client";
+import { getConversationId } from './../services/conversation.service';
+import { Conversation } from "./../models/conversation";
 import { getPrismaClient } from "../untils/db";
+import {
+  CreateConversationRequestDto,
+  UpdateConversationRequestDto,
+} from "../dtos/request/conversation.dto";
 
-export class ConversationRepository {
-//   async createConversation(env: Env): Promise<Conversation> {
-//     const prisma = getPrismaClient(env);
-//     return await prisma.conversation.create({ data });
-//   }
+export async function createConversation(
+  env: Env,
+  data: CreateConversationRequestDto
+): Promise<Conversation> {
+  const prisma = getPrismaClient(env);
 
-  async findConversationById(
-    env: Env,
-    id: string
-  ): Promise<Conversation | null> {
-    const prisma = getPrismaClient(env);
+  const conversation = await prisma.conversation.create({
+    data: {
+      ...data,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    },
+    include: {
+      messages: true,
+    },
+  });
+  return new Conversation(conversation);
+}
 
-    return prisma.conversation.findUnique({ where: { id } });
-  }
+export async function findConversationById(
+  env: Env,
+  id: string
+): Promise<Conversation | null> {
+  const prisma = getPrismaClient(env);
 
-  async findAllConversations(env: Env): Promise<Conversation[]> {
-    const prisma = getPrismaClient(env);
+  const conversation = await prisma.conversation.findUnique({
+    where: { id },
+    include: { messages: true },
+  });
+  return new Conversation(conversation);
+}
 
-    return await prisma.conversation.findMany();
-  }
+export async function findAllConversations(env: Env): Promise<Conversation[]> {
+  const prisma = getPrismaClient(env);
 
-  async updateConversation(
-    id: string,
-    env: Env,
-    data: Prisma.ConversationUpdateInput
-  ): Promise<Conversation> {
-    const prisma = getPrismaClient(env);
+  const conversations = await prisma.conversation.findMany();
+  return conversations.map((conversation) => new Conversation(conversation));
+}
 
-    return await prisma.conversation.update({
-      where: { id },
-      data,
-    });
-  }
+// export async function updateConversation(
+//   env: Env,
+//   id: string,
+//   data: UpdateConversationRequestDto
+// ): Promise<Conversation> {
+//   const prisma = getPrismaClient(env);
 
-  async deleteConversation(env: Env, id: string): Promise<Conversation> {
-    const prisma = getPrismaClient(env);
+//   const conversation = await prisma.conversation.update({
+//     where: { id },
+//     data: {
+//       ...data,
 
-    return await prisma.conversation.delete({ where: { id } });
-  }
+//     },
+//   });
+//   return new Conversation(conversation);
+// }
+
+export async function deleteConversation(env: Env, id: string): Promise<void> {
+  const prisma = getPrismaClient(env);
+
+  await prisma.conversation.delete({
+    where: { id },
+  });
+}
+
+export async function getConversationId(
+  env: Env,
+  userId: string,
+  businessId: string
+): Promise<Conversation | null> {
+  const prisma = getPrismaClient(env);
+
+  const conversation = await prisma.conversation.findFirst({
+    where: {
+      userId,
+      businessId,
+    },
+  });
+  return conversation ? new Conversation(conversation) : null;
 }

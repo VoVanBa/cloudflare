@@ -1,8 +1,9 @@
 import { Hono } from "hono";
+import { Context } from "hono";
 import { login, register, validate } from "../services/user.service";
 import { CreateUserDto } from "../dtos/request/user.dto";
 
-export const authRoute = new Hono();
+export const authRoute = new Hono<{ Bindings: Env }>();
 
 authRoute.post("/register", async (c) => {
   const body = await c.req.json();

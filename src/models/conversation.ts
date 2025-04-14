@@ -1,5 +1,6 @@
 import { Business } from "./business";
 import { ClientType } from "./enums";
+import { Message } from "./message";
 import { User } from "./user";
 
 export class Conversation {
@@ -15,7 +16,7 @@ export class Conversation {
   updatedAt: Date;
   deletedAt?: Date;
 
-  constructor(data: Partial<Conversation>) {
+  constructor(data: any) {
     this.id = data.id!;
     this.business = data.business!;
     this.businessId = data.businessId!;
