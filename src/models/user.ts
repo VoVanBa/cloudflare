@@ -6,6 +6,7 @@ export class User {
   id: string;
   email: string;
   name?: string;
+  password: string;
   role: UserRole;
   businessId?: string;
   business?: Business;
@@ -15,10 +16,11 @@ export class User {
   updatedAt: Date;
   deletedAt?: Date;
 
-  constructor(data: Partial<User>) {
+  constructor(data: any) {
     this.id = data.id!;
     this.email = data.email!;
     this.name = data.name;
+    this.password = data.password!;
     this.role = data.role || UserRole.CLIENT;
     this.businessId = data.businessId;
     this.business = data.business;

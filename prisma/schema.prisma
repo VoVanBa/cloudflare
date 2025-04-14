@@ -5,12 +5,13 @@ generator client {
 
 datasource db {
   provider = "sqlite"
-  url      = "DATABASE_URL"
+  url      = "file:./dev.db"
 }
 
 model User {
   id            String         @id @default(cuid())
   email         String         @unique
+  password      String
   name          String?
   role          UserRole       @default(CLIENT)
   businessId    String? // Nếu là admin/employee thì thuộc về 1 business

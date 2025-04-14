@@ -12,12 +12,7 @@ database_name = "prisma-demo-db"
 database_id = "bfee1346-ed0d-47e2-ac06-4f1a2f88f50a"
 
 # Cấu hình Durable Objects
-[[durable_objects]]
-binding = "CHAT_ROOM"
-class_name = "ChatRoom"
 
-[durable_objects.migrations]
-new_classes = ["ChatRoom"]
 
 # Các phần bị comment trong JSON được giữ nguyên dưới dạng comment trong TOML
 # vars.MY_VAR = "my-variable"
@@ -36,3 +31,7 @@ new_classes = ["ChatRoom"]
 # [observability]
 # enabled = true
 # head_sampling_rate = 1
+
+[env]
+  DATABASE_URL = "file:./dev.db"
+  JWT_SECRET = "your-secret-here"
