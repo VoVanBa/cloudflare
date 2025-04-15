@@ -1,10 +1,11 @@
-import { CreateUserDto } from "../dtos/request/user.dto";
+import { CreateUserDto, UpdateUserDto } from "../dtos/request/user.dto";
 import { LoginResponseDto } from "../dtos/response/auth/login.dto";
 import ms from "ms";
 import {
   createUser,
   getUserByEmail,
   getUserById,
+  updateUser,
 } from "../repositories/user.repository";
 import { signToken, verifyToken } from "../untils/jwt";
 import * as bcrypt from "bcryptjs";
@@ -56,7 +57,8 @@ export const login = async (
 };
 
 export const validate = async (token: string) => {
-  const payload = await verifyToken(token);
+  const header = token.split(" ")[1];
+  const payload = await verifyToken(header);
   if (!payload) throw new Error("Invalid token");
   return payload;
 };
@@ -67,10 +69,46 @@ export const hashPassword = async (password: string): Promise<string> => {
   return hashedPassword;
 };
 
+export const getUserByToken = async (env: Env, token: string): Promise<any> => {
+  const payload = await validate(token);
+  console.log("payload", payload);
+
+  if (typeof payload.id !== "string") {
+    throw new Error("Invalid token payload: id is not a string");
+  }
+  const user = await getUserById(env, payload.id);
+  if (!user) throw new Error("User not found");
+  return user;
+};
+
 export const comparePassword = async (
   password: string,
   hashedPassword: string
 ): Promise<boolean> => {
   const isMatch = await bcrypt.compare(password, hashedPassword);
   return isMatch;
+};
+
+export const getUser = async (env: Env, id: string) => {
+  const user = await getUserById(env, id);
+  if (!user) throw new Error("User not found");
+  return user;
+};
+
+export const updateBusinesIdToUser = async (
+  env: Env,
+  id: string,
+  data: UpdateUserDto
+) => {
+  const updatedUser = await updateUser(env, id, data);
+  return updatedUser;
+};
+
+export const updateUserData = async (
+  env: Env,
+  id: string,
+  data: UpdateUserDto
+) => {
+  const updatedUser = await updateUser(env, id, data);
+  return updatedUser;
 };

@@ -1,7 +1,7 @@
 import { Hono } from "hono";
-import { getConversationId } from "../repositories/conversation.repository";
+import { getConversationId } from "../services/conversation.service";
 
-export const conversationRoute = new Hono();
+export const conversationRoute = new Hono<{ Bindings: Env }>();
 
 conversationRoute.get("/", async (c) => {
   const userId = c.req.query("userId");

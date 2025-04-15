@@ -1,4 +1,3 @@
-import { getConversationId } from './../services/conversation.service';
 import { Conversation } from "./../models/conversation";
 import { getPrismaClient } from "../untils/db";
 import {

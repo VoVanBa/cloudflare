@@ -23,23 +23,18 @@ export async function getUserById(env: Env, id: string): Promise<User | null> {
       deletedAt: null,
     },
   });
-  return user ? new User({ user }) : null;
+  return user ? new User(user) : null;
 }
 
-export async function updateUser(
-  env: Env,
-  id: string,
-  data: UpdateUserDto
-): Promise<void> {
+export async function updateUser(env: Env, id: string, data: UpdateUserDto) {
   const prisma = getPrismaClient(env);
-  prisma.user.update({
+  await prisma.user.update({
     where: {
       id,
       deletedAt: null,
     },
     data: {
       ...data,
-      updatedAt: new Date(),
     },
   });
 }

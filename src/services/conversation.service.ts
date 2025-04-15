@@ -15,6 +15,9 @@ export const getConversationId = async (
   businessId: string
 ): Promise<any> => {
   const conversation = await getConversationId(env, userId, businessId);
+  if (!conversation) {
+   throw new Error("Conversation not found");
+  }
   return conversation;
 };
 

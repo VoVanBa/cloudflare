@@ -10,7 +10,7 @@ export class Business {
   updatedAt: Date;
   deletedAt?: Date;
 
-  constructor(data: Partial<Business>) {
+  constructor(data: any) {
     this.id = data.id!;
     this.name = data.name!;
     this.users = data.users || [];

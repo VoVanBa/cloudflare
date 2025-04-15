@@ -1,7 +1,13 @@
 import { Hono } from "hono";
 import { Context } from "hono";
-import { login, register, validate } from "../services/user.service";
-import { CreateUserDto } from "../dtos/request/user.dto";
+import {
+  getUserByToken,
+  login,
+  register,
+  updateUserData,
+  validate,
+} from "../services/user.service";
+import { CreateUserDto, UpdateUserDto } from "../dtos/request/user.dto";
 
 export const authRoute = new Hono<{ Bindings: Env }>();
 
@@ -41,5 +47,31 @@ authRoute.get("/validate", async (c) => {
     return c.json({ valid: true, payload });
   } catch (err) {
     return c.json({ error: err.message }, 401);
+  }
+});
+
+authRoute.put("/update", async (c) => {
+  try {
+    const authHeader = c.req.header("Authorization");
+    if (!authHeader) {
+      return c.json({ error: "Missing token" }, 401);
+    }
+    const user = await getUserByToken(c.env, authHeader); // chú ý: truyền token đã cắt
+    if (!user) {
+      return c.json({ error: "Invalid token" }, 401);
+    }
+
+    const body = await c.req.json();
+    const userData: UpdateUserDto = {
+      name: body.name,
+      role: body.role,
+      businessId: body.businessId,
+    };
+
+    await updateUserData(c.env, user.id, userData);
+
+    return c.json({ message: "User updated successfully" });
+  } catch (err) {
+    return c.json({ error: err.message }, 500);
   }
 });
