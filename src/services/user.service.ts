@@ -51,7 +51,7 @@ export const login = async (
     token,
     user: {
       id: user.id,
-      expiresIn: ms("1h"),
+      role: user.role,
     },
   };
 };

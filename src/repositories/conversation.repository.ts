@@ -5,7 +5,7 @@ import {
   UpdateConversationRequestDto,
 } from "../dtos/request/conversation.dto";
 
-export async function createConversation(
+export async function create(
   env: Env,
   data: CreateConversationRequestDto
 ): Promise<Conversation> {
@@ -14,8 +14,6 @@ export async function createConversation(
   const conversation = await prisma.conversation.create({
     data: {
       ...data,
-      createdAt: new Date(),
-      updatedAt: new Date(),
     },
     include: {
       messages: true,
@@ -37,10 +35,18 @@ export async function findConversationById(
   return new Conversation(conversation);
 }
 
-export async function findAllConversations(env: Env): Promise<Conversation[]> {
+export async function findAllConversations(
+  env: Env,
+  businessId: string
+): Promise<Conversation[]> {
   const prisma = getPrismaClient(env);
 
-  const conversations = await prisma.conversation.findMany();
+  const conversations = await prisma.conversation.findMany({
+    where: {
+      businessId,
+    },
+    include: { messages: true },
+  });
   return conversations.map((conversation) => new Conversation(conversation));
 }
 

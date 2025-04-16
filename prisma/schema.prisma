@@ -38,7 +38,7 @@ model Conversation {
   id         String     @id @default(cuid())
   business   Business   @relation(fields: [businessId], references: [id])
   businessId String
-  guestId    Int?
+  guestId    String?
   clientType ClientType
   user       User?      @relation(fields: [userId], references: [id])
   userId     String?
