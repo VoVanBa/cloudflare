@@ -1,7 +1,9 @@
+import { User } from "./../models/user";
 import { Hono } from "hono";
 import { Context } from "hono";
 import {
   getUserByToken,
+  getUserDetails,
   login,
   register,
   updateUserData,
@@ -73,5 +75,19 @@ authRoute.put("/update", async (c) => {
     return c.json({ message: "User updated successfully" });
   } catch (err) {
     return c.json({ error: err.message }, 500);
+  }
+});
+
+authRoute.get("/me", async (c) => {
+  const authHeader = c.req.header("Authorization");
+  if (!authHeader) return c.json({ error: "Missing token" }, 401);
+
+  try {
+    const user = await getUserByToken(c.env, authHeader);
+    if (!user) return c.json({ error: "Invalid token" }, 401);
+    const userDetail = await getUserDetails(c.env, user.id);
+    return c.json(userDetail);
+  } catch (err) {
+    return c.json({ error: err.message }, 401);
   }
 });

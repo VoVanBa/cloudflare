@@ -112,3 +112,9 @@ export const updateUserData = async (
   const updatedUser = await updateUser(env, id, data);
   return updatedUser;
 };
+
+export const getUserDetails= async (env: Env, id: string) => {
+  const user = await getUserById(env, id);
+  if (!user) throw new Error("User not found");
+  return user;
+}

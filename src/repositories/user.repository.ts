@@ -22,6 +22,13 @@ export async function getUserById(env: Env, id: string): Promise<User | null> {
       id,
       deletedAt: null,
     },
+    include: {
+      conversations: {
+        include: {
+          business: true,
+        },
+      },
+    },
   });
   return user ? new User(user) : null;
 }

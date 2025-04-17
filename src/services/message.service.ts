@@ -2,7 +2,8 @@ import {
   CreateMessageDto,
   UpdateMessageDto,
 } from "../dtos/request/message.dto";
-import { getMessages } from "../repositories/message.repository";
+import { updateCreateAt } from "../repositories/conversation.repository";
+import { create, getMessages } from "../repositories/message.repository";
 
 export const getAllMessage = async (
   env: Env,
@@ -24,7 +25,8 @@ export const createMessage = async (
   env: Env,
   messageData: CreateMessageDto
 ): Promise<any> => {
-  const message = await createMessage(env, messageData);
+  const message = await create(env, messageData);
+  updateCreateAt(env, message.conversationId);
   return message;
 };
 export const updateMessage = async (

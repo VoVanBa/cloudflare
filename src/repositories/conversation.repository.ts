@@ -37,7 +37,9 @@ export async function findConversationById(
 
 export async function findAllConversations(
   env: Env,
-  businessId: string
+  businessId: string,
+  page: number = 1,
+  limit: number = 10
 ): Promise<Conversation[]> {
   const prisma = getPrismaClient(env);
 
@@ -45,8 +47,13 @@ export async function findAllConversations(
     where: {
       businessId,
     },
-    include: { messages: true },
+    orderBy: {
+      createdAt: "desc",
+    },
+    skip: (page - 1) * limit,
+    take: limit,
   });
+
   return conversations.map((conversation) => new Conversation(conversation));
 }
 
@@ -77,16 +84,31 @@ export async function deleteConversation(env: Env, id: string): Promise<void> {
 
 export async function getConversationId(
   env: Env,
-  userId: string,
-  businessId: string
+  conversationId: string
 ): Promise<Conversation | null> {
   const prisma = getPrismaClient(env);
-
   const conversation = await prisma.conversation.findFirst({
     where: {
-      userId,
-      businessId,
+      id: conversationId,
+    },
+    include: {
+      messages: true,
     },
   });
   return conversation ? new Conversation(conversation) : null;
+}
+
+export async function updateCreateAt(
+  env: Env,
+  consersationId: string
+): Promise<void> {
+  const prisma = getPrismaClient(env);
+  await prisma.conversation.update({
+    where: {
+      id: consersationId,
+    },
+    data: {
+      createdAt: new Date(),
+    },
+  });
 }

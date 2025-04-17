@@ -4,6 +4,7 @@ import { conversationRoute } from "./routes/conversation";
 import * as dotenv from "dotenv";
 import { businessRoute } from "./routes/business";
 import { cors } from "hono/cors";
+import { messageRoute } from "./routes/message";
 dotenv.config();
 
 const app = new Hono();
@@ -19,7 +20,7 @@ app.get("/", (c) => c.text("Hello from ES Module Worker!"));
 app.route("/auth", authRoute);
 app.route("/conversation", conversationRoute);
 app.route("/business", businessRoute);
-
+app.route("/messages", messageRoute);
 export default app;
 
 export interface Env {

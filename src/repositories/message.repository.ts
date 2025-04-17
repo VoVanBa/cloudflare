@@ -44,7 +44,7 @@ export async function getMessage(
   return message ? new Message({ message }) : null;
 }
 
-export async function createMessage(
+export async function create(
   env: Env,
   messageData: CreateMessageDto
 ): Promise<Message> {

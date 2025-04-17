@@ -13,3 +13,5 @@ export interface UpdateConversationRequestDto {
   userId?: string; // nếu là user đã đăng ký
   clientType?: "GUEST" | "USER"; // enum
 }
+
+
