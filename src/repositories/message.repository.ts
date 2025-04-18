@@ -7,9 +7,12 @@ import { getPrismaClient } from "../untils/db";
 
 export async function getMessages(
   env: Env,
-  conversationId: string
+  conversationId: string,
+  page: number = 1,
+  limit: number = 10
 ): Promise<Message[]> {
   const prisma = getPrismaClient(env);
+  const skip = (page - 1) * limit;
   const message = await prisma.message.findMany({
     where: {
       conversationId: conversationId,
@@ -20,20 +23,22 @@ export async function getMessages(
       conversation: true,
     },
     orderBy: { createdAt: "asc" },
+    skip: skip,
+    take: limit,
   });
   return message.map((message) => {
-    return new Message({ message });
+    return new Message(message);
   });
 }
 
 export async function getMessage(
   env: Env,
-  messageId: string
+  consersationId: string
 ): Promise<Message | null> {
   const prisma = getPrismaClient(env);
-  const message = await prisma.message.findUnique({
+  const message = await prisma.message.findMany({
     where: {
-      id: messageId,
+      conversationId: consersationId,
       deletedAt: null,
     },
     include: {
@@ -41,7 +46,7 @@ export async function getMessage(
       conversation: true,
     },
   });
-  return message ? new Message({ message }) : null;
+  return message ? new Message(message) : null;
 }
 
 export async function create(
@@ -59,7 +64,7 @@ export async function create(
       conversation: true,
     },
   });
-  return new Message({ message });
+  return new Message(message);
 }
 
 export async function updateMessage(
@@ -79,4 +84,18 @@ export async function updateMessage(
     },
   });
   return message ? new Message({ message }) : null;
+}
+
+export async function getMessageCount(
+  env: Env,
+  conversationId: string
+): Promise<number> {
+  const prisma = getPrismaClient(env);
+  const count = await prisma.message.count({
+    where: {
+      conversationId: conversationId,
+      deletedAt: null,
+    },
+  });
+  return count;
 }

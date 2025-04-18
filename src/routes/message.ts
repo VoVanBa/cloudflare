@@ -16,12 +16,17 @@ export const messageRoute = new Hono<{ Bindings: Env }>();
 messageRoute.get("/:conversationId", async (c) => {
   const conversationId = c.req.param("conversationId");
 
+  // Lấy tham số phân trang từ query string, mặc định là page 1 và pageSize 10
+  const page = parseInt(c.req.query("page") || "1", 10);
+  const pageSize = parseInt(c.req.query("pageSize") || "10", 10);
+
   if (!conversationId) {
     return c.json({ error: "Missing conversationId" }, 400);
   }
 
   try {
-    const messages = await getAllMessage(c.env, conversationId);
+    // Gọi hàm getMessage với các tham số phân trang
+    const messages = await getAllMessage(c.env, conversationId, page, pageSize);
     return c.json(messages);
   } catch (error) {
     console.error("Error fetching messages:", error);

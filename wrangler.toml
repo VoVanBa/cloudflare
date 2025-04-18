@@ -35,3 +35,14 @@ database_id = "bfee1346-ed0d-47e2-ac06-4f1a2f88f50a"
 [env]
   DATABASE_URL = "file:./dev.db"
   JWT_SECRET = "your-secret-here"
+
+
+# Cấu hình Durable Objects
+[[durable_objects.bindings]]
+name = "CHAT_ROOMS"
+class_name = "ChatRoom"
+
+[durable_objects]
+migrations = [
+  { tag = "v1", new_classes = ["ChatRoom"] }
+]

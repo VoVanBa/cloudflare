@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import {
   createConversation,
   getAllConversations,
-  getConversation,
+  getConversationMessage,
 } from "../services/conversation.service";
 import { getUserByToken } from "../services/user.service";
 import { ClientType } from "../models/enums";
@@ -11,9 +11,28 @@ export const conversationRoute = new Hono<{ Bindings: Env }>();
 
 conversationRoute.get("get-by-id/:conversationId", async (c) => {
   const conversationId = c.req.param("conversationId");
+
+  // Nhận page và limit từ query param, mặc định nếu không truyền
+  const page = parseInt(c.req.query("page") || "1", 10);
+  const limit = parseInt(c.req.query("limit") || "10", 10);
+
   try {
-    const conversation = await getConversation(c.env, conversationId);
-    return c.json({ conversation });
+    const { messages, totalCount } = await getConversationMessage(
+      c.env,
+      conversationId,
+      page,
+      limit
+    );
+
+    return c.json({
+      messages,
+      pagination: {
+        page,
+        limit,
+        totalCount,
+        hasMore: page * limit < totalCount,
+      },
+    });
   } catch (error) {
     console.error("Error fetching/creating conversation:", error);
     return c.json({ error: "Internal Server Error" }, 500);

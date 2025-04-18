@@ -9,6 +9,7 @@ import {
   updateCreateAt,
 } from "../repositories/conversation.repository";
 import { MessageResponseDto } from "../dtos/response/auth/message.dto";
+import { ClientType } from "../models/enums";
 
 export const getConversationById = async (env: Env, conversationId: string) => {
   const conversation = await findConversationById(env, conversationId);
@@ -16,22 +17,38 @@ export const getConversationById = async (env: Env, conversationId: string) => {
   return conversation;
 };
 
-export const getConversation = async (
+export const getConversationMessage = async (
   env: Env,
-  conversationId: string
-): Promise<MessageResponseDto[]> => {
+  conversationId: string,
+  page: number = 1,
+  limit: number = 10
+): Promise<{ messages: MessageResponseDto[]; totalCount: number }> => {
   const conversation = await getConversationId(env, conversationId);
   if (!conversation) {
     throw new Error("Conversation not found");
   }
 
-  const messages = conversation.messages.map((msg: any) => ({
-    id: msg.id,
-    content: msg.content,
-    senderType: msg.senderType,
-  }));
+  const allMessages = conversation.messages;
+  const totalCount = allMessages.length;
 
-  return messages;
+  // Tính offset
+  const startIndex = (page - 1) * limit;
+  const endIndex = startIndex + limit;
+
+  // Cắt mảng tin nhắn theo phân trang
+  const paginatedMessages = allMessages
+    .slice(startIndex, endIndex)
+    .map((msg: any) => ({
+      id: msg.id,
+      content: msg.content,
+      senderType: msg.senderType,
+      createdAt: msg.createdAt,
+    }));
+
+  return {
+    messages: paginatedMessages,
+    totalCount,
+  };
 };
 
 export const getAllConversations = async (
@@ -69,8 +86,15 @@ export const createConversation = async (
   env: Env,
   data: CreateConversationRequestDto
 ): Promise<any> => {
+  if (data.clientType === ClientType.ANONYMOUS) {
+    data.guestId = data.guestId ?? crypto.randomUUID();
+  }
   const conversation = await create(env, data);
-  return conversation;
+  return {
+    id: conversation.id,
+    guestId: data.guestId, // gửi lại FE để lưu vào localStorage (nếu là anonymous)
+    userId: data.userId, // gửi lại FE để lưu vào localStorage (nếu là user)
+  };
 };
 
 export const updateConversationCreateAt = async (
