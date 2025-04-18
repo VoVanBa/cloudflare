@@ -1,3 +1,4 @@
+import { Conversation } from './../models/conversation';
 import {
   CreateMessageDto,
   UpdateMessageDto,
@@ -12,8 +13,8 @@ import {
 export const getAllMessage = async (
   env: Env,
   conversationId: string,
-  page: number,
-  limit: number
+  page: number = 1,
+  limit: number = 10
 ): Promise<any> => {
   // Lấy dữ liệu tin nhắn từ hàm getMessages
   const messages = await getMessages(env, conversationId, page, limit);

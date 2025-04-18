@@ -86,6 +86,7 @@ export const createConversation = async (
   env: Env,
   data: CreateConversationRequestDto
 ): Promise<any> => {
+  // const conversationExisting= getConversationById
   if (data.clientType === ClientType.ANONYMOUS) {
     data.guestId = data.guestId ?? crypto.randomUUID();
   }

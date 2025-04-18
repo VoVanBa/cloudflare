@@ -27,7 +27,7 @@ messageRoute.get("/:conversationId", async (c) => {
   try {
     // Gọi hàm getMessage với các tham số phân trang
     const messages = await getAllMessage(c.env, conversationId, page, pageSize);
-    return c.json(messages);
+    return c.json(messages, 200);
   } catch (error) {
     console.error("Error fetching messages:", error);
     return c.json({ error: "Internal Server Error" }, 500);

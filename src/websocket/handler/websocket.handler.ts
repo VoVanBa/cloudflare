@@ -1,4 +1,4 @@
-import { createMessage } from "../../services/message.service";
+import { createMessage, getAllMessage } from "../../services/message.service";
 import { getConversationById } from "../../services/conversation.service";
 
 import { CreateMessageDto } from "../../dtos/request/message.dto";
@@ -80,7 +80,7 @@ export async function handleWebSocketMessage(
 
       case "REQUEST_HISTORY": {
         // Lấy lại lịch sử cuộc trò chuyện từ DB
-        const conversation = await getConversationById(env, conversationId);
+        const conversation = await getAllMessage(env, conversationId);
 
         if (conversation?.messages) {
           // Gửi danh sách tin nhắn về cho client
@@ -123,14 +123,15 @@ export async function initializeWebSocketConnection(
 ): Promise<void> {
   try {
     // Lấy lịch sử cuộc trò chuyện
-    const conversation = await getConversationById(env, conversationId);
+    const messagesExisting = await getAllMessage(env, conversationId);
 
-    if (conversation?.messages) {
+    console.log(messagesExisting?.messages);
+    if (messagesExisting?.messages) {
       // Gửi toàn bộ lịch sử tin nhắn cho client mới kết nối
       socket.send(
         JSON.stringify({
           type: "HISTORY",
-          messages: conversation.messages.map((m) => ({
+          messages: messagesExisting?.messages.map((m) => ({
             id: m.id,
             content: m.content,
             senderType: m.senderType,

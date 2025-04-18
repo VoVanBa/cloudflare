@@ -35,6 +35,19 @@ export async function findConversationById(
   return new Conversation(conversation);
 }
 
+export async function findConversationByBusinessId(
+  env: Env,
+  id: string
+): Promise<Conversation | null> {
+  const prisma = getPrismaClient(env);
+
+  const conversation = await prisma.conversation.findUnique({
+    where: { id },
+    include: { messages: true },
+  });
+  return new Conversation(conversation);
+}
+
 export async function findAllConversations(
   env: Env,
   businessId: string,
