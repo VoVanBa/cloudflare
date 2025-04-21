@@ -14,7 +14,7 @@ model User {
   password      String
   name          String?
   role          UserRole       @default(CLIENT)
-  businessId    String? 
+  businessId    String?
   business      Business?      @relation(fields: [businessId], references: [id])
   conversations Conversation[]
   messages      Message[]
@@ -27,7 +27,7 @@ model User {
 model Business {
   id            String         @id @default(cuid())
   name          String
-  users         User[] // Danh sách admin/employee thuộc business này
+  users         User[] 
   conversations Conversation[]
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt

@@ -5,6 +5,7 @@ import {
   findAllConversations,
   findConversationById,
   getConversationClientId,
+  linkConversationWithUser,
   updateCreateAt,
 } from "../repositories/conversation.repository";
 import { MessageResponseDto } from "../dtos/response/auth/message.dto";
@@ -56,7 +57,6 @@ export const getAllConversations = async (
   page: number = 1,
   limit: number = 10
 ): Promise<any> => {
-  // Gọi đến hàm findAllConversations với các tham số phân trang
   const conversations = await findAllConversations(
     env,
     businessId,
@@ -64,8 +64,12 @@ export const getAllConversations = async (
     limit
   );
 
+  const conversationsWithMessages = conversations.filter(
+    (conversation) => conversation.messages && conversation.messages.length > 0
+  );
+
   return {
-    data: conversations.map((conversation) => ({
+    data: conversationsWithMessages.map((conversation) => ({
       id: conversation.id,
       name: conversation.userId
         ? conversation.user?.name
@@ -74,10 +78,9 @@ export const getAllConversations = async (
       userId: conversation.userId,
       guestId: conversation.guestId,
     })),
-    // Bạn có thể thêm tổng số trang nếu cần, ví dụ như count từ DB
     page,
     limit,
-    total: conversations.length, // Hoặc tổng số trang thực tế từ backend
+    total: conversationsWithMessages.length,
   };
 };
 
@@ -122,4 +125,16 @@ export const updateConversationCreateAt = async (
   }
   updateCreateAt(env, id);
   return conversation;
+};
+
+export const updateUserConversation = async (
+  env: Env,
+  conversationId: string,
+  userId: string
+) => {
+  const conversation = await findConversationById(env, conversationId);
+  if (!conversation) {
+    throw new Error("Conversation not found");
+  }
+  const update = await linkConversationWithUser(env, conversationId, userId);
 };

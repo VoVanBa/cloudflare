@@ -110,6 +110,7 @@ conversationRoute.post("/", async (c) => {
   const userId = body.userId;
   const guestId = body.guestId;
   const clientType = body.clientType;
+  const authHeader = c.req.header("Authorization");
 
   if (!businessId) {
     return c.json({ error: "Missing businessId" }, 400);
@@ -117,12 +118,17 @@ conversationRoute.post("/", async (c) => {
 
   const data = {
     businessId,
-    userId, // có thể undefined nếu là guest
-    guestId, // có thể undefined nếu là user
-    clientType, // enum,
+    userId,
+    guestId,
+    clientType,
   };
 
   try {
+    if (authHeader) {
+      const user = await getUserByToken(c.env, authHeader);
+      data.userId = user.id;
+    }
+
     const conversation = await createConversation(c.env, data);
     return c.json({
       conversationId: conversation.id,

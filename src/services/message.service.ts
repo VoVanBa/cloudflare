@@ -18,12 +18,8 @@ export const getAllMessage = async (
   page: number = 1,
   limit: number = 10
 ): Promise<any> => {
-  // Lấy dữ liệu tin nhắn từ hàm getMessages
   const messages = await getMessages(env, conversationId, page, limit);
 
-  console.log(messages, "ạhdashdsakhdjas");
-
-  // Chỉ lấy các trường cần thiết: id, conversationId, content, senderType
   const simplifiedMessages = messages.map((message: any) => ({
     id: message.id,
     conversationId: message.conversationId,
@@ -35,14 +31,8 @@ export const getAllMessage = async (
     senderType: message.senderType,
     createdAt: message.createdAt,
   }));
-
-  // Giả sử bạn có hàm `getMessageCount` để lấy tổng số tin nhắn
   const totalMessages = await getMessageCount(env, conversationId);
-
-  // Tính toán tổng số trang
   const totalPages = Math.ceil(totalMessages / limit);
-
-  // Trả về dữ liệu tin nhắn đã được tối giản cùng với thông tin phân trang
   return {
     messages: simplifiedMessages,
     pagination: {

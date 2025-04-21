@@ -60,6 +60,10 @@ export async function findAllConversations(
     where: {
       businessId,
     },
+    include: {
+      messages: true,
+      user: true,
+    },
     orderBy: {
       createdAt: "desc",
     },
@@ -70,22 +74,21 @@ export async function findAllConversations(
   return conversations.map((conversation) => new Conversation(conversation));
 }
 
-// export async function updateConversation(
-//   env: Env,
-//   id: string,
-//   data: UpdateConversationRequestDto
-// ): Promise<Conversation> {
-//   const prisma = getPrismaClient(env);
-
-//   const conversation = await prisma.conversation.update({
-//     where: { id },
-//     data: {
-//       ...data,
-
-//     },
-//   });
-//   return new Conversation(conversation);
-// }
+// Gán userId vào conversation sau khi login thành công
+export async function linkConversationWithUser(
+  env: Env,
+  conversationId: string,
+  userId: string
+) {
+  const prisma = getPrismaClient(env);
+  return prisma.conversation.update({
+    where: { id: conversationId },
+    data: {
+      userId,
+      clientType: "AUTHENTICATED",
+    },
+  });
+}
 
 export async function deleteConversation(env: Env, id: string): Promise<void> {
   const prisma = getPrismaClient(env);

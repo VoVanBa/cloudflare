@@ -3,14 +3,13 @@ import {
   getAllMessage,
   getMessageById,
 } from "../../services/message.service";
-import { getConversationById } from "../../services/conversation.service";
 
 import { CreateMessageDto } from "../../dtos/request/message.dto";
+import { getUserById } from "../../repositories/user.repository";
 
-// Interface định nghĩa cấu trúc message nhận được từ WebSocket
 interface WebSocketMessage {
   type: string; // Loại message: SEND_MESSAGE, TYPING, REQUEST_HISTORY,...
-  content?: string; // Nội dung (chỉ áp dụng khi type là SEND_MESSAGE)
+  content?: string;
   page?: number;
   limit?: number;
   mediaIds?: string[];
@@ -19,13 +18,13 @@ interface WebSocketMessage {
 
 // Hàm xử lý khi một tin nhắn được gửi tới WebSocket
 export async function handleWebSocketMessage(
-  socket: WebSocket, // Socket hiện tại
+  socket: WebSocket,
   message: string, // Chuỗi message dạng JSON từ client gửi lên
-  env: Env, // Biến môi trường chứa config, DB,...
-  conversationId: string, // ID cuộc trò chuyện hiện tại
-  userId: string | null, // ID của user (client hoặc admin)
-  isAdmin: boolean, // Đánh dấu user là admin hay không
-  broadcast: (message: string) => void // Hàm để broadcast message tới các client khác
+  env: Env,
+  conversationId: string,
+  userId: string | null,
+  isAdmin: boolean,
+  broadcast: (message: string) => void
 ): Promise<void> {
   try {
     // Parse JSON từ client thành object
@@ -86,11 +85,12 @@ export async function handleWebSocketMessage(
       }
 
       case "TYPING": {
-        // Gửi trạng thái "đang nhập" tới các client khác
+        console.log(userId,"keimtrakeimtea")
+        const user = await getUserById(env, userId);
         broadcast(
           JSON.stringify({
             type: "TYPING",
-            user: userId ?? "anonymous",
+            name: user ? user?.name : "Khách",
           })
         );
         break;
