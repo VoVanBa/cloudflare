@@ -95,19 +95,31 @@ export async function deleteConversation(env: Env, id: string): Promise<void> {
   });
 }
 
-export async function getConversationId(
+export async function getConversationClientId(
   env: Env,
-  conversationId: string
+  userId?: string,
+  guestId?: string
 ): Promise<Conversation | null> {
   const prisma = getPrismaClient(env);
+
+  // Tạo điều kiện tìm kiếm dựa trên userId hoặc guestId
+  const filter: any = {};
+  if (userId) {
+    filter.userId = userId;
+  }
+  if (guestId) {
+    filter.guestId = guestId;
+  }
+
+  // Tìm cuộc trò chuyện đầu tiên thỏa mãn điều kiện
   const conversation = await prisma.conversation.findFirst({
-    where: {
-      id: conversationId,
-    },
+    where: filter,
     include: {
       messages: true,
     },
   });
+
+  // Trả về đối tượng Conversation nếu tìm thấy, nếu không trả về null
   return conversation ? new Conversation(conversation) : null;
 }
 

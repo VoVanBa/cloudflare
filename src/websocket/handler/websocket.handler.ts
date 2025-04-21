@@ -1,4 +1,8 @@
-import { createMessage, getAllMessage } from "../../services/message.service";
+import {
+  createMessage,
+  getAllMessage,
+  getMessageById,
+} from "../../services/message.service";
 import { getConversationById } from "../../services/conversation.service";
 
 import { CreateMessageDto } from "../../dtos/request/message.dto";
@@ -7,7 +11,10 @@ import { CreateMessageDto } from "../../dtos/request/message.dto";
 interface WebSocketMessage {
   type: string; // Loại message: SEND_MESSAGE, TYPING, REQUEST_HISTORY,...
   content?: string; // Nội dung (chỉ áp dụng khi type là SEND_MESSAGE)
-  [key: string]: any; // Cho phép các thuộc tính linh hoạt khác
+  page?: number;
+  limit?: number;
+  mediaIds?: string[];
+  [key: string]: any;
 }
 
 // Hàm xử lý khi một tin nhắn được gửi tới WebSocket
@@ -39,6 +46,7 @@ export async function handleWebSocketMessage(
           return;
         }
 
+        console.log(data, "datadatadata");
         // Tạo DTO để lưu tin nhắn vào DB
         const messageDto: CreateMessageDto = {
           conversationId,
@@ -46,12 +54,16 @@ export async function handleWebSocketMessage(
           senderType: isAdmin ? "ADMIN" : "CLIENT",
           userId: isAdmin ? userId ?? undefined : undefined, // Admin thì dùng userId
           guestId: !isAdmin ? userId ?? crypto.randomUUID() : undefined, // Client thì dùng guestId
+          mediaIds: data.mediaIds,
         };
 
         // Gọi service lưu tin nhắn vào DB
-        const newMessage = await createMessage(env, messageDto);
+        const message = await createMessage(env, messageDto);
 
-        // Broadcast tin nhắn mới cho tất cả client trong phòng
+        // In the SEND_MESSAGE case, when returning the new message:
+        const newMessage = await getMessageById(env, message.id);
+
+        console.log(newMessage, "ádsdasdas");
         broadcast(
           JSON.stringify({
             type: "NEW_MESSAGE",
@@ -59,7 +71,14 @@ export async function handleWebSocketMessage(
               id: newMessage.id,
               content: newMessage.content,
               senderType: newMessage.senderType,
+              userId: userId || "anonymous",
+              conversationId: conversationId,
               createdAt: newMessage.createdAt,
+              media:
+                newMessage.messageOnMedia?.map((item) => ({
+                  id: item.media?.id,
+                  url: item.media?.url,
+                })) || [],
             },
           })
         );
@@ -71,8 +90,7 @@ export async function handleWebSocketMessage(
         broadcast(
           JSON.stringify({
             type: "TYPING",
-            userId: userId ?? "anonymous",
-            conversationId,
+            user: userId ?? "anonymous",
           })
         );
         break;
@@ -80,7 +98,14 @@ export async function handleWebSocketMessage(
 
       case "REQUEST_HISTORY": {
         // Lấy lại lịch sử cuộc trò chuyện từ DB
-        const conversation = await getAllMessage(env, conversationId);
+        const page = data.page || 1;
+        const limit = data.limit || 10;
+        const conversation = await getAllMessage(
+          env,
+          conversationId,
+          page,
+          limit
+        );
 
         if (conversation?.messages) {
           // Gửi danh sách tin nhắn về cho client
@@ -92,6 +117,7 @@ export async function handleWebSocketMessage(
                 content: m.content,
                 senderType: m.senderType,
                 createdAt: m.createdAt,
+                url: m?.media?.map((item) => item.url),
               })),
             })
           );
@@ -125,7 +151,6 @@ export async function initializeWebSocketConnection(
     // Lấy lịch sử cuộc trò chuyện
     const messagesExisting = await getAllMessage(env, conversationId);
 
-    console.log(messagesExisting?.messages);
     if (messagesExisting?.messages) {
       // Gửi toàn bộ lịch sử tin nhắn cho client mới kết nối
       socket.send(
@@ -136,6 +161,11 @@ export async function initializeWebSocketConnection(
             content: m.content,
             senderType: m.senderType,
             createdAt: m.createdAt,
+            media:
+              m.media?.map((item) => ({
+                id: item?.id,
+                url: item?.url,
+              })) || [],
           })),
         })
       );

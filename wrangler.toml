@@ -49,3 +49,10 @@ migrations = [
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["ChatRoom"]
+
+[vars]
+CLOUDINARY_CLOUD_NAME="de0zslyf7"
+CLOUDINARY_API_KEY="225258554655337"
+CLOUDINARY_API_SECRET="FjIBVw9G8nfGgeM4XsE56-DJNT0"
+CLOUDINARY_UPLOAD_PRESET = "unsigned_upload"
+

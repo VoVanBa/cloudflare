@@ -5,6 +5,8 @@ export interface CreateMessageDto {
   content: string; // Nội dung tin nhắn
   userId?: string; // Nếu ADMIN gửi thì có userId
   guestId?: string; // Nếu CLIENT gửi thì có guestId
+  mediaIds?: string[];
+  chatType: string;
 }
 
 // src/dto/update-message.dto.ts

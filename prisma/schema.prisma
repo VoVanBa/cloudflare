@@ -8,20 +8,20 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-
 model User {
   id            String         @id @default(cuid())
   email         String         @unique
   password      String
   name          String?
   role          UserRole       @default(CLIENT)
-  businessId    String? // Nếu là admin/employee thì thuộc về 1 business
+  businessId    String? 
   business      Business?      @relation(fields: [businessId], references: [id])
   conversations Conversation[]
   messages      Message[]
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
   deletedAt     DateTime?
+  notification  Notification[]
 }
 
 model Business {
@@ -35,36 +35,78 @@ model Business {
 }
 
 model Conversation {
-  id         String     @id @default(cuid())
-  business   Business   @relation(fields: [businessId], references: [id])
-  businessId String
-  guestId    String?
-  clientType ClientType
-  user       User?      @relation(fields: [userId], references: [id])
-  userId     String?
-  messages   Message[]
-  createdAt  DateTime   @default(now())
-  updatedAt  DateTime   @updatedAt
-  deletedAt  DateTime?
+  id           String         @id @default(cuid())
+  businessId   String
+  userId       String?
+  guestId      String?
+  clientType   ClientType
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  deletedAt    DateTime?
+  notification Notification[]
+  messages     Message[]
+  user         User?          @relation(fields: [userId], references: [id])
+  business     Business       @relation(fields: [businessId], references: [id])
 
   @@index([businessId])
 }
 
+model Notification {
+  id             String           @id @default(cuid())
+  conversationId String?
+  userId         String
+  title          String
+  content        String
+  type           NotificationType @default(NEW_MESSAGE)
+  isRead         Boolean          @default(false)
+  createdAt      DateTime         @default(now())
+  user           User             @relation(fields: [userId], references: [id])
+  conversation   Conversation?    @relation(fields: [conversationId], references: [id])
+}
+
 model Message {
-  id             String       @id @default(cuid())
+  id             String           @id @default(cuid())
   conversationId String
   content        String
-  userId         String? // Nếu là ADMIN gửi thì có userId
-  guestId        String? // Nếu là CLIENT gửi thì có guestId
+  userId         String?
+  guestId        String?
   deletedAt      DateTime?
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  chatTypes      Json?
   senderType     SenderType
-  conversation   Conversation @relation(fields: [conversationId], references: [id])
-  user           User?        @relation(fields: [userId], references: [id])
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  conversation   Conversation     @relation(fields: [conversationId], references: [id])
+  user           User?            @relation(fields: [userId], references: [id])
+  messageOnMedia MessageOnMedia[]
 
   @@index([conversationId])
-  @@index([createdAt])
+}
+
+model MessageOnMedia {
+  id        String   @id @default(cuid())
+  message   Message  @relation(fields: [messageId], references: [id])
+  messageId String
+  mediaId   String
+  media     Media    @relation(fields: [mediaId], references: [id])
+  addedAt   DateTime @default(now())
+}
+
+model Media {
+  id         String           @id @default(cuid())
+  url        String
+  fileName   String
+  mimeType   String
+  size       Int // in bytes
+  uploadedAt DateTime         @default(now())
+  messages   MessageOnMedia[]
+}
+
+enum NotificationType {
+  NEW_MESSAGE
+  SYSTEM
+  MESSAGE_READ
+  CONVERSATION_NEW
+  OTHER
 }
 
 enum SenderType {
@@ -80,4 +122,12 @@ enum ClientType {
 enum UserRole {
   CLIENT
   ADMIN
+}
+
+enum ChatType {
+  TEXT
+  IMAGE
+  VIDEO
+  FILE
+  AUDIO
 }

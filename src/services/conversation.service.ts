@@ -4,8 +4,7 @@ import {
   create,
   findAllConversations,
   findConversationById,
-  getConversationId,
-  updateCreateaAt,
+  getConversationClientId,
   updateCreateAt,
 } from "../repositories/conversation.repository";
 import { MessageResponseDto } from "../dtos/response/auth/message.dto";
@@ -23,7 +22,7 @@ export const getConversationMessage = async (
   page: number = 1,
   limit: number = 10
 ): Promise<{ messages: MessageResponseDto[]; totalCount: number }> => {
-  const conversation = await getConversationId(env, conversationId);
+  const conversation = await findConversationById(env, conversationId);
   if (!conversation) {
     throw new Error("Conversation not found");
   }
@@ -86,16 +85,31 @@ export const createConversation = async (
   env: Env,
   data: CreateConversationRequestDto
 ): Promise<any> => {
-  // const conversationExisting= getConversationById
-  if (data.clientType === ClientType.ANONYMOUS) {
-    data.guestId = data.guestId ?? crypto.randomUUID();
+  // Kiểm tra xem đã có cuộc trò chuyện với userId hoặc guestId chưa
+  const existClient = await getConversationClientId(
+    env,
+    data.userId,
+    data.guestId
+  );
+  console.log(existClient, "sssss");
+
+  // Nếu chưa có cuộc trò chuyện, tạo mới
+  if (!existClient) {
+    const conversation = await create(env, data);
+
+    return {
+      id: conversation.id,
+      guestId: conversation.guestId, // gửi lại FE để lưu vào sessionStorage/localStorage (nếu là anonymous)
+      userId: conversation.userId, // gửi lại FE để lưu vào localStorage (nếu là user)
+    };
+  } else {
+    // Nếu cuộc trò chuyện đã tồn tại, có thể trả về thông tin cuộc trò chuyện hiện tại
+    return {
+      id: existClient.id,
+      guestId: existClient.guestId, // nếu có guestId
+      userId: existClient.userId, // nếu có userId
+    };
   }
-  const conversation = await create(env, data);
-  return {
-    id: conversation.id,
-    guestId: data.guestId, // gửi lại FE để lưu vào localStorage (nếu là anonymous)
-    userId: data.userId, // gửi lại FE để lưu vào localStorage (nếu là user)
-  };
 };
 
 export const updateConversationCreateAt = async (

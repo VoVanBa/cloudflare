@@ -21,8 +21,13 @@ export async function getMessages(
     include: {
       user: true,
       conversation: true,
+      messageOnMedia: {
+        include: {
+          media: true,
+        },
+      },
     },
-    orderBy: { createdAt: "asc" },
+    orderBy: { createdAt: "desc" },
     skip: skip,
     take: limit,
   });
@@ -33,17 +38,21 @@ export async function getMessages(
 
 export async function getMessage(
   env: Env,
-  consersationId: string
+  messageId: string
 ): Promise<Message | null> {
   const prisma = getPrismaClient(env);
-  const message = await prisma.message.findMany({
+  const message = await prisma.message.findFirst({
     where: {
-      conversationId: consersationId,
-      deletedAt: null,
+      id: messageId,
     },
     include: {
       user: true,
       conversation: true,
+      messageOnMedia: {
+        include: {
+          media: true,
+        },
+      },
     },
   });
   return message ? new Message(message) : null;
@@ -56,12 +65,21 @@ export async function create(
   const prisma = getPrismaClient(env);
   const message = await prisma.message.create({
     data: {
-      ...messageData,
-      createdAt: new Date(),
+      conversationId: messageData.conversationId,
+      userId: messageData.userId,
+      content: messageData.content,
+      guestId: messageData.guestId,
+      senderType: messageData.senderType,
+      chatTypes: messageData.chatType,
     },
     include: {
       user: true,
       conversation: true,
+      messageOnMedia: {
+        include: {
+          media: true,
+        },
+      },
     },
   });
   return new Message(message);

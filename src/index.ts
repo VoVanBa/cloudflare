@@ -7,6 +7,7 @@ import { cors } from "hono/cors";
 import { messageRoute } from "./routes/message";
 import { ChatRoom } from "./websocket/durable-object/chat-room.object"; // Import class ChatRoom từ nơi bạn đã định nghĩa
 import { Env } from "./types";
+import { mediaRoute } from "./routes/media";
 export { ChatRoom }; // Xuất khẩu class ChatRoom để Cloudflare Worker biết
 
 dotenv.config();
@@ -28,6 +29,7 @@ app.route("/auth", authRoute);
 app.route("/conversation", conversationRoute);
 app.route("/business", businessRoute);
 app.route("/messages", messageRoute);
+app.route("/media", mediaRoute);
 app.get("/chat/websocket", async (c) => {
   console.log();
   const { conversationId, userId, isAdmin } = c.req.query();

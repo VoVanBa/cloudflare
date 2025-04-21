@@ -1,4 +1,4 @@
-import { Conversation } from './../models/conversation';
+import { Conversation } from "./../models/conversation";
 import {
   CreateMessageDto,
   UpdateMessageDto,
@@ -6,9 +6,11 @@ import {
 import { updateCreateAt } from "../repositories/conversation.repository";
 import {
   create,
+  getMessage,
   getMessageCount,
   getMessages,
 } from "../repositories/message.repository";
+import { createMessageOnMediaMany } from "./messageOnMedia.service";
 
 export const getAllMessage = async (
   env: Env,
@@ -19,12 +21,19 @@ export const getAllMessage = async (
   // Lấy dữ liệu tin nhắn từ hàm getMessages
   const messages = await getMessages(env, conversationId, page, limit);
 
+  console.log(messages, "ạhdashdsakhdjas");
+
   // Chỉ lấy các trường cần thiết: id, conversationId, content, senderType
   const simplifiedMessages = messages.map((message: any) => ({
     id: message.id,
     conversationId: message.conversationId,
     content: message.content,
+    media: message.messageOnMedia.map((item) => ({
+      id: item.media.id,
+      url: item.media.url,
+    })),
     senderType: message.senderType,
+    createdAt: message.createdAt,
   }));
 
   // Giả sử bạn có hàm `getMessageCount` để lấy tổng số tin nhắn
@@ -51,7 +60,7 @@ export const getMessageById = async (
   env: Env,
   messageId: string
 ): Promise<any> => {
-  const message = await getMessages(env, messageId);
+  const message = await getMessage(env, messageId);
   return message;
 };
 
@@ -59,10 +68,19 @@ export const createMessage = async (
   env: Env,
   messageData: CreateMessageDto
 ): Promise<any> => {
+  console.log(messageData, "ádasdsd");
   const message = await create(env, messageData);
 
-  console.log("message", message);
   await updateCreateAt(env, message.conversationId);
+  if ((messageData.mediaIds ?? []).length > 0) {
+    await createMessageOnMediaMany(
+      env,
+      message.id,
+      messageData?.mediaIds ?? []
+    );
+  }
+  console.log("message", message);
+
   return message;
 };
 export const updateMessage = async (

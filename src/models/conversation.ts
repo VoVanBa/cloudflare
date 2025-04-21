@@ -1,6 +1,7 @@
 import { Business } from "./business";
 import { ClientType } from "./enums";
 import { Message } from "./message";
+import { Notification } from "./notification";
 import { User } from "./user";
 
 export class Conversation {
@@ -15,6 +16,7 @@ export class Conversation {
   createdAt: Date;
   updatedAt: Date;
   deletedAt?: Date;
+  notification: Notification[];
 
   constructor(data: any) {
     this.id = data.id!;
@@ -28,5 +30,6 @@ export class Conversation {
     this.createdAt = data.createdAt!;
     this.updatedAt = data.updatedAt!;
     this.deletedAt = data.deletedAt;
+    this.notification = data.notification;
   }
 }
