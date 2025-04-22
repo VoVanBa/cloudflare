@@ -1,17 +1,16 @@
-import {
-  handleWebSocketMessage,
-  initializeWebSocketConnection,
-} from "../handler/websocket.handler";
+import { WebSocketHandler } from "../handler/websocket.handler";
 
 export class ChatRoom implements DurableObject {
   private sessions: Map<string, WebSocket> = new Map();
   private state: DurableObjectState;
   private env: Env;
   private conversationId: string | null = null;
+  private handle: WebSocketHandler;
 
   constructor(state: DurableObjectState, env: Env) {
     this.state = state;
     this.env = env;
+    this.handle = new WebSocketHandler();
 
     this.state.blockConcurrencyWhile(async () => {
       const stored = await this.state.storage.get("conversationId");
@@ -50,7 +49,6 @@ export class ChatRoom implements DurableObject {
 
     const conversationId = url.searchParams.get("conversationId");
     const userId = url.searchParams.get("userId");
-    const businessId = url.searchParams.get("businessId");
     const isAdmin = url.searchParams.get("isAdmin") === "true";
 
     if (!conversationId) {
@@ -66,34 +64,44 @@ export class ChatRoom implements DurableObject {
       throw err;
     }
 
-    this.sessions.set(sessionId, socket);
+    // Trong handleSession của ChatRoom
+    const identifier = isAdmin ? `admin:${userId}` : `client:${userId}`;
+    this.sessions.set(identifier, socket);
+    console.log("Sessions after adding:", [...this.sessions.keys()]);
+    console.log(this.sessions.get(identifier), "sessions");
 
     if (!this.conversationId) {
       this.conversationId = conversationId;
       await this.state.storage.put("conversationId", conversationId);
     }
 
-    await initializeWebSocketConnection(socket, this.env, conversationId);
+    await this.handle.initializeWebSocketConnection(
+      socket,
+      this.env,
+      conversationId
+    );
 
     socket.addEventListener("message", async (event) => {
-      await handleWebSocketMessage(
+      await this.handle.handleWebSocketMessage(
         socket,
         event.data as string,
         this.env,
         conversationId,
         userId,
         isAdmin,
-        (message: string) => this.broadcast(message)
+        (message: string) => this.broadcast(message),
+        (message: string, excludedId: string) =>
+          this.broadcastExcept(message, excludedId)
       );
     });
 
     socket.addEventListener("close", () => {
-      this.sessions.delete(sessionId);
+      this.sessions.delete(identifier);
       this.checkCleanup();
     });
 
     socket.addEventListener("error", () => {
-      this.sessions.delete(sessionId);
+      this.sessions.delete(identifier);
       this.checkCleanup();
     });
   }
@@ -104,6 +112,18 @@ export class ChatRoom implements DurableObject {
         socket.send(message);
       } catch {
         this.sessions.delete(id);
+      }
+    }
+  }
+
+  broadcastExcept(message: string, excludedId: string) {
+    for (const [id, socket] of this.sessions) {
+      if (id !== excludedId) {
+        try {
+          socket.send(message);
+        } catch {
+          this.sessions.delete(id);
+        }
       }
     }
   }

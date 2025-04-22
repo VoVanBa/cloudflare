@@ -7,7 +7,7 @@ export class Notification {
   conversation?: Conversation;
   conversationId?: string;
   user: User;
-  userId: string;
+  userId?: string;
   title: string;
   content: string;
   type: NotificationType;
