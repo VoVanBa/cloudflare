@@ -1,3 +1,4 @@
+import { create } from "./../services/business.service";
 import {
   CreateMessageDto,
   UpdateMessageDto,
@@ -63,6 +64,7 @@ export async function create(
   messageData: CreateMessageDto
 ): Promise<Message> {
   const prisma = getPrismaClient(env);
+
   const message = await prisma.message.create({
     data: {
       conversationId: messageData.conversationId,
@@ -71,6 +73,13 @@ export async function create(
       guestId: messageData.guestId,
       senderType: messageData.senderType,
       chatTypes: messageData.chatType,
+      messageOnMedia: messageData.mediaIds
+        ? {
+            create: messageData.mediaIds.map((mediaId) => ({
+              mediaId: mediaId,
+            })),
+          }
+        : undefined,
     },
     include: {
       user: true,
@@ -82,6 +91,7 @@ export async function create(
       },
     },
   });
+
   return new Message(message);
 }
 

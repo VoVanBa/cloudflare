@@ -62,14 +62,6 @@ export const createMessage = async (
   const message = await create(env, messageData);
 
   await updateCreateAt(env, message.conversationId);
-  if ((messageData.mediaIds ?? []).length > 0) {
-    await createMessageOnMediaMany(
-      env,
-      message.id,
-      messageData?.mediaIds ?? []
-    );
-  }
-  console.log("message", message);
 
   return message;
 };

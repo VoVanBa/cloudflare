@@ -44,8 +44,10 @@ export class WebSocketHandler {
       switch (data.type) {
         case "SEND_MESSAGE": {
           // Nếu thiếu nội dung thì trả về lỗi
-          if (!data.content) {
-            socket.send(JSON.stringify({ error: "Missing message content" }));
+          if (!data.content && (!data.mediaIds || data.mediaIds.length === 0)) {
+            socket.send(
+              JSON.stringify({ error: "Missing message content or media" })
+            );
             return;
           }
 
@@ -54,46 +56,70 @@ export class WebSocketHandler {
           // Tạo DTO để lưu tin nhắn vào DB
           const messageDto: CreateMessageDto = {
             conversationId,
-            content: data.content,
+            content: data.content || "",
             senderType: isAdmin ? "ADMIN" : "CLIENT",
             userId: isAdmin ? userId ?? undefined : undefined, // Admin thì dùng userId
             guestId: !isAdmin ? userId ?? crypto.randomUUID() : undefined, // Client thì dùng guestId
             mediaIds: data.mediaIds,
+            chatType: "",
           };
 
           // Gọi service lưu tin nhắn vào DB
           const message = await createMessage(env, messageDto);
 
-          // In the SEND_MESSAGE case, when returning the new message:
-          const newMessage = await getMessageById(env, message.id);
+          let senderName = "Unknown";
+          if (isAdmin) {
+            if (userId) {
+              const user = await getUserById(env, userId);
+              senderName = user?.name || "Admin";
+            } else {
+              senderName = "Admin";
+            }
+          } else {
+            // For clients
+            if (userId) {
+              const user = await getUserById(env, userId);
+              senderName = user?.name || "Khách";
+            } else {
+              senderName = "Khách ẩn danh";
+            }
+          }
 
           // 🔔 Gửi notification
           await createNewNotification(env, {
-            title: "Tin nhắn mới",
-            content: data.content,
+            title: `Tin nhắn mới từ ${senderName}`,
+            content: data.content || "Đã gửi một hình ảnh",
             type: NotificationType.NEW_MESSAGE,
             userId: userId,
             conversationId,
           });
 
+          // Create enhanced notification message
           const typingNotifi = JSON.stringify({
             type: "NOTIFICATION",
-            name: "Tin nhắn mới",
+            conversationId: conversationId,
+            name: senderName,
+            content: data.content || "Đã gửi một hình ảnh",
+            timestamp: new Date().toISOString(),
+            hasMedia: data.mediaIds && data.mediaIds.length > 0 ? true : false,
           });
-          broadcastExcept(typingNotifi, userId);
+
+          if (userId !== null) {
+            broadcastExcept(typingNotifi, userId);
+          }
 
           broadcast(
             JSON.stringify({
               type: "NEW_MESSAGE",
               message: {
-                id: newMessage.id,
-                content: newMessage.content,
-                senderType: newMessage.senderType,
+                id: message.id,
+                content: message.content,
+                senderType: message.senderType,
                 userId: userId || "anonymous",
                 conversationId: conversationId,
-                createdAt: newMessage.createdAt,
+                createdAt: message.createdAt,
                 media:
-                  newMessage.messageOnMedia?.map((item) => ({
+                  message.messageOnMedia?.map((item) => ({
                     id: item.media?.id,
                     url: item.media?.url,
                   })) || [],
@@ -145,7 +171,11 @@ export class WebSocketHandler {
                   content: m.content,
                   senderType: m.senderType,
                   createdAt: m.createdAt,
-                  url: m?.media?.map((item) => item.url),
+                  media:
+                    m.media?.map((item) => ({
+                      id: item?.id,
+                      url: item?.url,
+                    })) || [],
                 })),
               })
             );
@@ -153,6 +183,26 @@ export class WebSocketHandler {
             // Nếu không có cuộc trò chuyện, trả về lỗi
             socket.send(JSON.stringify({ error: "Conversation not found" }));
           }
+          break;
+        }
+
+        case "MARK_AS_READ": {
+          // New case to mark messages as read
+          if (!conversationId) {
+            socket.send(JSON.stringify({ error: "Missing conversation ID" }));
+            return;
+          }
+
+          // Here you would typically update a database to mark messages as read
+          // For now, just broadcast that messages have been read
+          broadcast(
+            JSON.stringify({
+              type: "MESSAGES_READ",
+              conversationId: conversationId,
+              readBy: userId,
+              timestamp: new Date().toISOString(),
+            })
+          );
           break;
         }
 
