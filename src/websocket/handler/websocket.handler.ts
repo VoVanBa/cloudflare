@@ -67,46 +67,46 @@ export class WebSocketHandler {
           // Gọi service lưu tin nhắn vào DB
           const message = await createMessage(env, messageDto);
 
-          let senderName = "Unknown";
-          if (isAdmin) {
-            if (userId) {
-              const user = await getUserById(env, userId);
-              senderName = user?.name || "Admin";
-            } else {
-              senderName = "Admin";
-            }
-          } else {
-            // For clients
-            if (userId) {
-              const user = await getUserById(env, userId);
-              senderName = user?.name || "Khách";
-            } else {
-              senderName = "Khách ẩn danh";
-            }
-          }
+          // let senderName = "Unknown";
+          // if (isAdmin) {
+          //   if (userId) {
+          //     const user = await getUserById(env, userId);
+          //     senderName = user?.name || "Admin";
+          //   } else {
+          //     senderName = "Admin";
+          //   }
+          // } else {
+          //   // For clients
+          //   if (userId) {
+          //     const user = await getUserById(env, userId);
+          //     senderName = user?.name || "Khách";
+          //   } else {
+          //     senderName = "Khách ẩn danh";
+          //   }
+          // }
 
-          // 🔔 Gửi notification
-          await createNewNotification(env, {
-            title: `Tin nhắn mới từ ${senderName}`,
-            content: data.content || "Đã gửi một hình ảnh",
-            type: NotificationType.NEW_MESSAGE,
-            userId: userId,
-            conversationId,
-          });
+          // // 🔔 Gửi notification
+          // await createNewNotification(env, {
+          //   title: `Tin nhắn mới từ ${senderName}`,
+          //   content: data.content || "Đã gửi một hình ảnh",
+          //   type: NotificationType.NEW_MESSAGE,
+          //   userId: userId,
+          //   conversationId,
+          // });
 
-          // Create enhanced notification message
-          const typingNotifi = JSON.stringify({
-            type: "NOTIFICATION",
-            conversationId: conversationId,
-            name: senderName,
-            content: data.content || "Đã gửi một hình ảnh",
-            timestamp: new Date().toISOString(),
-            hasMedia: data.mediaIds && data.mediaIds.length > 0 ? true : false,
-          });
+          // // Create enhanced notification message
+          // const typingNotifi = JSON.stringify({
+          //   type: "NOTIFICATION",
+          //   conversationId: conversationId,
+          //   name: senderName,
+          //   content: data.content || "Đã gửi một hình ảnh",
+          //   timestamp: new Date().toISOString(),
+          //   hasMedia: data.mediaIds && data.mediaIds.length > 0 ? true : false,
+          // });
 
-          if (userId !== null) {
-            broadcastExcept(typingNotifi, userId);
-          }
+          // if (userId !== null) {
+          //   broadcastExcept(typingNotifi, userId);
+          // }
 
           broadcast(
             JSON.stringify({
@@ -126,6 +126,15 @@ export class WebSocketHandler {
               },
             })
           );
+
+          if (!isAdmin) {
+            const notificationMessage = JSON.stringify({
+              type: "NEW_CLIENT_MESSAGE",
+              conversationId: conversationId,
+              guestName: data.guestName || "Khách", // Tên client, có thể lấy từ data nếu có
+            });
+            broadcastExcept(notificationMessage, userId);
+          }
           break;
         }
         case "TYPING": {
