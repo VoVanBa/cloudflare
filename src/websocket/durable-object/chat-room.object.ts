@@ -2,6 +2,7 @@ import { WebSocketHandler } from "../handler/websocket.handler";
 
 export class ChatRoom implements DurableObject {
   private sessions: Map<string, WebSocket> = new Map();
+  private unreadCountMap: Map<string, number> = new Map();
   private state: DurableObjectState;
   private env: Env;
   private conversationId: string | null = null;
@@ -15,6 +16,12 @@ export class ChatRoom implements DurableObject {
     this.state.blockConcurrencyWhile(async () => {
       const stored = await this.state.storage.get("conversationId");
       this.conversationId = stored as string | null;
+      const unreadCountStored = await this.state.storage.get("unreadCountMap");
+      if (unreadCountStored) {
+        this.unreadCountMap = new Map(
+          Object.entries(unreadCountStored as Record<string, number>)
+        );
+      }
     });
   }
 

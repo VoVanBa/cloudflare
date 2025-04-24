@@ -1,9 +1,6 @@
 import { Conversation } from "./../models/conversation";
 import { getPrismaClient } from "../untils/db";
-import {
-  CreateConversationRequestDto,
-  UpdateConversationRequestDto,
-} from "../dtos/request/conversation.dto";
+import { CreateConversationRequestDto } from "../dtos/request/conversation.dto";
 
 export async function create(
   env: Env,
@@ -85,7 +82,6 @@ export async function linkConversationWithUser(
     where: { id: conversationId },
     data: {
       userId,
-      clientType: "AUTHENTICATED",
     },
   });
 }

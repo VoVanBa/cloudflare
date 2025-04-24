@@ -38,8 +38,8 @@ model Conversation {
   id           String         @id @default(cuid())
   businessId   String
   userId       String?
-  guestId      String?
-  clientType   ClientType
+  // guestId      String?
+  // clientType   ClientType
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
   deletedAt    DateTime?
@@ -69,7 +69,7 @@ model Message {
   conversationId String
   content        String
   userId         String?
-  guestId        String?
+  // guestId        String?
   deletedAt      DateTime?
   chatTypes      Json?
   senderType     SenderType

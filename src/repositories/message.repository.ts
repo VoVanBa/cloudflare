@@ -1,4 +1,3 @@
-import { create } from "./../services/business.service";
 import {
   CreateMessageDto,
   UpdateMessageDto,
@@ -70,7 +69,6 @@ export async function create(
       conversationId: messageData.conversationId,
       userId: messageData.userId,
       content: messageData.content,
-      guestId: messageData.guestId,
       senderType: messageData.senderType,
       chatTypes: messageData.chatType,
       messageOnMedia: messageData.mediaIds
