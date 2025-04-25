@@ -10,7 +10,8 @@ export async function create(
 
   const conversation = await prisma.conversation.create({
     data: {
-      ...data,
+      userId: data.userId,
+      businessId: data.businessId,
     },
     include: {
       messages: true,
@@ -89,15 +90,17 @@ export async function linkConversationWithUser(
 export async function deleteConversation(env: Env, id: string): Promise<void> {
   const prisma = getPrismaClient(env);
 
-  await prisma.conversation.delete({
+  await prisma.conversation.update({
     where: { id },
+    data: {
+      deletedAt: new Date(),
+    },
   });
 }
 
 export async function getConversationClientId(
   env: Env,
-  userId?: string,
-  guestId?: string
+  userId?: string
 ): Promise<Conversation | null> {
   const prisma = getPrismaClient(env);
 
@@ -105,9 +108,6 @@ export async function getConversationClientId(
   const filter: any = {};
   if (userId) {
     filter.userId = userId;
-  }
-  if (guestId) {
-    filter.guestId = guestId;
   }
 
   // Tìm cuộc trò chuyện đầu tiên thỏa mãn điều kiện

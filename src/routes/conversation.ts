@@ -1,11 +1,11 @@
 import { Hono } from "hono";
 import {
   createConversation,
+  deleteConversationbyId,
   getAllConversations,
   getConversationMessage,
 } from "../services/conversation.service";
 import { getUserByToken } from "../services/user.service";
-import { ClientType } from "../models/enums";
 
 export const conversationRoute = new Hono<{ Bindings: Env }>();
 
@@ -107,35 +107,40 @@ conversationRoute.get("all/:businessId", async (c) => {
 conversationRoute.post("/", async (c) => {
   const body = await c.req.json();
   const businessId = body.businessId;
-  const userId = body.userId;
-  const guestId = body.guestId;
-  const clientType = body.clientType;
   const authHeader = c.req.header("Authorization");
 
   if (!businessId) {
     return c.json({ error: "Missing businessId" }, 400);
   }
 
-  const data = {
-    businessId,
-    userId,
-    guestId,
-    clientType,
-  };
-
   try {
-    if (authHeader) {
-      const user = await getUserByToken(c.env, authHeader);
-      data.userId = user.id;
-    }
+    const user = await getUserByToken(c.env, authHeader);
+    const userId = user?.id;
+    const data = {
+      businessId,
+      userId,
+    };
 
     const conversation = await createConversation(c.env, data);
     return c.json({
       conversationId: conversation.id,
-      guestId, // gửi lại FE để lưu vào localStorage (nếu là anonymous)
     });
   } catch (error) {
     console.error("Error creating conversation:", error);
+    return c.json({ error: "Internal Server Error" }, 500);
+  }
+});
+
+conversationRoute.delete("/:id", async (c) => {
+  const conversationId = c.req.param("id");
+  if (!conversationId) {
+    return c.json({ error: "Missing conversationId" }, 400);
+  }
+  try {
+    await deleteConversationbyId(c.env, conversationId);
+    return c.json({ message: "Conversation deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting conversation:", error);
     return c.json({ error: "Internal Server Error" }, 500);
   }
 });

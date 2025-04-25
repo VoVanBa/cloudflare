@@ -114,11 +114,6 @@ enum SenderType {
   ADMIN
 }
 
-enum ClientType {
-  AUTHENTICATED
-  ANONYMOUS
-}
-
 enum UserRole {
   CLIENT
   ADMIN
