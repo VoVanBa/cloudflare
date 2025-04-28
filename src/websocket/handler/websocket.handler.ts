@@ -5,8 +5,7 @@ import {
 } from "../../services/message.service";
 import { CreateMessageDto } from "../../dtos/request/message.dto";
 import { getUserById } from "../../repositories/user.repository";
-import { createNewNotification } from "../../services/notification.service";
-import { NotificationType } from "../../models/enums";
+
 
 interface WebSocketMessage {
   type: string; // Loại message: SEND_MESSAGE, TYPING, REQUEST_HISTORY,...

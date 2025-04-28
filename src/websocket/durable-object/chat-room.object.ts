@@ -1,3 +1,6 @@
+import { console } from "inspector";
+import { UserRole } from "../../models/enums";
+import { getUserByToken } from "../../services/user.service";
 import { WebSocketHandler } from "../handler/websocket.handler";
 
 export class ChatRoom implements DurableObject {
@@ -27,7 +30,7 @@ export class ChatRoom implements DurableObject {
 
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
-
+    console.log("Request URL:", url);
     if (url.pathname === "/websocket") {
       // Kiểm tra header Upgrade để xác nhận là WebSocket
       if (request.headers.get("Upgrade")?.toLowerCase() !== "websocket") {
@@ -39,7 +42,9 @@ export class ChatRoom implements DurableObject {
       const [client, server] = Object.values(pair);
 
       try {
-        await this.handleSession(server, url);
+        const token = url.searchParams.get("token");
+        console.log("Token from URL:", token);
+        await this.handleSession(server, url, token);
         // Trả về WebSocket client để client-side kết nối
         return new Response(null, { status: 101, webSocket: client });
       } catch (err) {
@@ -51,12 +56,16 @@ export class ChatRoom implements DurableObject {
     return new Response("Not found", { status: 404 });
   }
 
-  async handleSession(socket: WebSocket, url: URL) {
+  async handleSession(socket: WebSocket, url: URL, token: string) {
     const sessionId = crypto.randomUUID();
-
+    const user = await getUserByToken(this.env, token);
+    console.log("User from token:", user);
+    if (!user) {
+      return new Response("Unauthorized", { status: 401 });
+    }
     const conversationId = url.searchParams.get("conversationId");
-    const userId = url.searchParams.get("userId");
-    const isAdmin = url.searchParams.get("isAdmin") === "true";
+    const userId = user.id;
+    const isAdmin = user.role === UserRole.ADMIN;
 
     if (!conversationId) {
       socket.close(1008, "Missing conversationId");

@@ -30,31 +30,51 @@ app.route("/conversation", conversationRoute);
 app.route("/business", businessRoute);
 app.route("/messages", messageRoute);
 app.route("/media", mediaRoute);
+// Updated app.get handler for WebSocket connections
 app.get("/chat/websocket", async (c) => {
-  console.log();
-  const { conversationId, userId, isAdmin } = c.req.query();
+  try {
+    const { conversationId, token } = c.req.query();
 
-  const roomId = c.env.CHAT_ROOMS.idFromName(conversationId);
-  const stub = c.env.CHAT_ROOMS.get(roomId);
+    // Validate required parameters
+    if (!conversationId || !token) {
+      return new Response(
+        "Missing required parameters: conversationId and token",
+        { status: 400 }
+      );
+    }
 
-  const url = new URL(c.req.url);
-  url.pathname = "/websocket";
-  url.searchParams.set("conversationId", conversationId);
-  url.searchParams.set("userId", userId);
-  url.searchParams.set("isAdmin", isAdmin || "false");
+    // Check if it's a WebSocket request
+    const upgradeHeader = c.req.header("Upgrade");
+    if (upgradeHeader?.toLowerCase() !== "websocket") {
+      return new Response("Expected Upgrade: websocket", { status: 426 });
+    }
 
-  const upgradeHeader = c.req.header("Upgrade");
-  if (upgradeHeader?.toLowerCase() !== "websocket") {
-    return new Response("Expected Upgrade: websocket", { status: 426 });
+    // Get Durable Object for this chat room
+    const roomId = c.env.CHAT_ROOMS.idFromName(conversationId);
+    const stub = c.env.CHAT_ROOMS.get(roomId);
+
+    // Create URL for Durable Object fetch
+    const url = new URL(c.req.url);
+    url.pathname = "/websocket";
+    url.searchParams.set("conversationId", conversationId);
+    url.searchParams.set("token", token);
+
+    console.log("WebSocket URL:", url.toString());
+
+    // Forward request to Durable Object with all original headers
+    const response = await stub.fetch(url.toString(), {
+      headers: c.req.raw.headers,
+      method: c.req.method,
+    });
+
+    // Return the response directly
+    return response;
+  } catch (error) {
+    console.error("WebSocket connection error:", error);
+    return new Response(`WebSocket initialization error: ${error.message}`, {
+      status: 500,
+    });
   }
-
-  const res = await stub.fetch(url.toString(), {
-    headers: c.req.raw.headers,
-  });
-
-  console.log("WS upgrade response status:", res.status); // 👀 debug
-
-  return res;
 });
 
 export default app;

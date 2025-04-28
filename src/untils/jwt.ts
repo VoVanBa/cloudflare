@@ -8,6 +8,9 @@ export const signToken = async (payload: any) => {
 
 export const verifyToken = async (token: string) => {
   try {
+    if(token.startsWith("Bearer ")) {
+      token = token.slice(7);
+    }
     return await verify(token, JWT_SECRET);
   } catch (err) {
     return null;

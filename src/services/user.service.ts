@@ -57,8 +57,8 @@ export const login = async (
 };
 
 export const validate = async (token: string) => {
-  const header = token.split(" ")[1];
-  const payload = await verifyToken(header);
+  // const header = token.split(" ")[1];
+  const payload = await verifyToken(token);
   if (!payload) throw new Error("Invalid token");
   return payload;
 };
@@ -113,8 +113,8 @@ export const updateUserData = async (
   return updatedUser;
 };
 
-export const getUserDetails= async (env: Env, id: string) => {
+export const getUserDetails = async (env: Env, id: string) => {
   const user = await getUserById(env, id);
   if (!user) throw new Error("User not found");
   return user;
-}
+};
