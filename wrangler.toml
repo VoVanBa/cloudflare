@@ -32,6 +32,10 @@ database_id = "bfee1346-ed0d-47e2-ac06-4f1a2f88f50a"
 # enabled = true
 # head_sampling_rate = 1
 
+kv_namespaces = [
+  { binding = "KV", id = "a65cdf00ca9a41b5b2d38c70ffe5aa29" }
+]
+
 [env]
   DATABASE_URL = "file:./dev.db"
   JWT_SECRET = "your-secret-here"
