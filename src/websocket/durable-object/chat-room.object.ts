@@ -15,7 +15,7 @@ export class ChatRoom implements DurableObject {
     this.state = state;
     this.env = env;
     this.handle = new WebSocketHandler();
-
+    // để đảm bảo đồng bộ hóa an toàn khi khởi tạo
     this.state.blockConcurrencyWhile(async () => {
       const stored = await this.state.storage.get("conversationId");
       this.conversationId = stored as string | null;

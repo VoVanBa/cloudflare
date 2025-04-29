@@ -5,6 +5,7 @@ import {
 } from "../../services/message.service";
 import { CreateMessageDto } from "../../dtos/request/message.dto";
 import { getUserById } from "../../repositories/user.repository";
+import { getCachedUserName } from "../../services/cache.service";
 
 interface WebSocketMessage {
   type: string; // Loại message: SEND_MESSAGE, TYPING, REQUEST_HISTORY,...
@@ -157,8 +158,7 @@ export class WebSocketHandler {
   ) {
     try {
       const senderIdentifier = isAdmin ? `admin:${userId}` : `client:${userId}`;
-      const user = userId ? await getUserById(env, userId) : null;
-      const displayName = user ? user.name : "Guest";
+      const displayName = await getCachedUserName(env, userId);
 
       const typingMessage = JSON.stringify({
         type: MessageType.TYPING,
