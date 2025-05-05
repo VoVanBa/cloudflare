@@ -44,8 +44,6 @@ export const getAllMessage = async (
   };
 };
 
-// Giả sử bạn có hàm getMessageCount để lấy tổng số tin nhắn
-
 export const getMessageById = async (
   env: Env,
   messageId: string
@@ -72,4 +70,17 @@ export const updateMessage = async (
 ): Promise<any> => {
   const message = await updateMessage(env, messageId, messageData);
   return message;
+};
+
+export const countUnreadMessages = async (
+  env: Env,
+  conversationId: string,
+  userId: string,
+  lastReadAt: Date
+): Promise<number> => {
+  const messages = await getMessages(env, conversationId);
+  const unreadMessages = messages.filter(
+    (message) => message.createdAt > lastReadAt && message.userId !== userId
+  );
+  return unreadMessages.length;
 };

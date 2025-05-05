@@ -92,7 +92,8 @@ export class ChatRoom implements DurableObject {
     await this.handle.initializeWebSocketConnection(
       socket,
       this.env,
-      conversationId
+      conversationId,
+      userId
     );
 
     socket.addEventListener("message", async (event) => {

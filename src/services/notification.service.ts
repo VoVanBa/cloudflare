@@ -24,6 +24,7 @@ export const fetchNotifications = async (
 };
 
 export const markAsRead = async (env: Env, notificationId: string) => {
+  
   return markNotificationAsRead(env, notificationId);
 };
 

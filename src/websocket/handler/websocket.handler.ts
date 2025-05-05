@@ -8,6 +8,10 @@ import { getUserById } from "../../repositories/user.repository";
 import { getCachedUserName } from "../../services/cache.service";
 import { createNewNotification } from "../../services/notification.service";
 import { NotificationType } from "../../models/enums";
+import {
+  getUnreadCount,
+  markConversationAsRead,
+} from "../../services/conversation-read.service";
 
 interface WebSocketMessage {
   type: string; // Loại message: SEND_MESSAGE, TYPING, REQUEST_HISTORY,...
@@ -79,6 +83,7 @@ export class WebSocketHandler {
           break;
         case MessageType.MARK_AS_READ:
           await this.handleMarkAsRead(
+            env,
             socket,
             conversationId,
             userId,
@@ -164,6 +169,7 @@ export class WebSocketHandler {
         businessId,
         role: isAdmin ? "CLIENT" : "ADMIN",
         type: NotificationType.NEW_MESSAGE,
+        senderType: message.senderType,
         payload: {
           conversationId,
           guestName: senderName,
@@ -220,6 +226,42 @@ export class WebSocketHandler {
     }
   }
 
+  private async handleMarkAsRead(
+    env: Env,
+    socket: WebSocket,
+    conversationId: string,
+    userId: string,
+    broadcast: (message: string) => void
+  ) {
+    if (!conversationId) {
+      socket.send(JSON.stringify({ error: "Missing conversation ID" }));
+      return;
+    }
+
+    try {
+      // Cập nhật hoặc tạo bản ghi ConversationRead
+      const readRecord = await markConversationAsRead(
+        env,
+        conversationId,
+        userId
+      );
+
+      // Tạo thông báo WebSocket
+      const readMessage = JSON.stringify({
+        type: MessageType.MESSAGES_READ,
+        conversationId,
+        readBy: userId,
+        lastReadAt: readRecord.lastReadAt.toISOString(),
+      });
+
+      // Phát thông báo tới tất cả client
+      broadcast(readMessage);
+    } catch (err) {
+      console.error("Error marking messages as read:", err);
+      socket.send(JSON.stringify({ error: "Failed to mark messages as read" }));
+    }
+  }
+
   // Handler cho REQUEST_HISTORY
   private async handleRequestHistory(
     socket: WebSocket,
@@ -253,37 +295,16 @@ export class WebSocketHandler {
     }
   }
 
-  // Handler cho MARK_AS_READ
-  private async handleMarkAsRead(
-    socket: WebSocket,
-    conversationId: string,
-    userId: string,
-    broadcast: (message: string) => void
-  ) {
-    if (!conversationId) {
-      socket.send(JSON.stringify({ error: "Missing conversation ID" }));
-      return;
-    }
-
-    const readMessage = JSON.stringify({
-      type: MessageType.MESSAGES_READ,
-      conversationId,
-      readBy: userId,
-      timestamp: new Date().toISOString(),
-    });
-
-    broadcast(readMessage);
-  }
-
   // Khởi tạo kết nối WebSocket
   async initializeWebSocketConnection(
     socket: WebSocket,
     env: Env,
-    conversationId: string
+    conversationId: string,
+    userId: string
   ): Promise<void> {
     try {
       const messagesExisting = await getAllMessage(env, conversationId);
-
+      const unreadCount = await getUnreadCount(env, conversationId, userId);
       if (messagesExisting?.messages) {
         socket.send(
           JSON.stringify({
@@ -299,6 +320,7 @@ export class WebSocketHandler {
                   url: item?.url,
                 })) || [],
             })),
+            unreadCount,
           })
         );
       }

@@ -6,6 +6,8 @@ import {
   getConversationMessage,
 } from "../services/conversation.service";
 import { getUserByToken } from "../services/user.service";
+import { markAsRead } from "../services/notification.service";
+import { markConversationAsRead } from "../services/conversation-read.service";
 
 export const conversationRoute = new Hono<{ Bindings: Env }>();
 
@@ -39,49 +41,20 @@ conversationRoute.get("get-by-id/:conversationId", async (c) => {
   }
 });
 
-// conversationRoute.get("/:businessId", async (c) => {
-//   const token = c.req.header("Authorization");
-//   let userId: string | undefined;
-//   let guestId: string | undefined;
-
-//   if (token) {
-//     const user = await getUserByToken(c.env, token);
-//     if (user) {
-//       userId = user.id;
-//     }
-//   }
-
-//   const body = await c.req.json();
-//   const businessId = c.req.param("businessId");
-
-//   // Nếu không có token → tạo guestId tạm thời (ẩn danh)
-//   if (!userId) {
-//     // Nếu FE có gửi guestId (localStorage) thì dùng, còn không thì tự sinh
-//     guestId = body.guestId ?? crypto.randomUUID();
-//   }
-
-//   if (!businessId) {
-//     return c.json({ error: "Missing businessId" }, 400);
-//   }
-
-//   const data = {
-//     businessId,
-//     userId, // có thể undefined nếu là guest
-//     guestId, // có thể undefined nếu là user
-//     clientType: userId ? ClientType.AUTHENTICATED : ClientType.ANONYMOUS, // enum,
-//   };
-
-//   try {
-//     const conversation = await createConversation(c.env, data);
-//     return c.json({
-//       conversationId: conversation.id,
-//       guestId, // gửi lại FE để lưu vào localStorage (nếu là anonymous)
-//     });
-//   } catch (error) {
-//     console.error("Error fetching/creating conversation:", error);
-//     return c.json({ error: "Internal Server Error" }, 500);
-//   }
-// });
+conversationRoute.put("mark-as-read/:conversationId", async (c) => {
+  const conversationId = c.req.param("conversationId");
+  const authHeader = c.req.header("Authorization");
+  const user = await getUserByToken(c.env, authHeader);
+  try {
+    const conversation = await markAsRead(c.env, conversationId);
+    return c.json({
+      conversationId: conversation.id,
+    });
+  } catch (error) {
+    console.error("Error creating conversation:", error);
+    return c.json({ error: "Internal Server Error" }, 500);
+  }
+});
 
 conversationRoute.get("all/:businessId", async (c) => {
   const businessId = c.req.param("businessId");
@@ -142,5 +115,30 @@ conversationRoute.delete("/:id", async (c) => {
   } catch (error) {
     console.error("Error deleting conversation:", error);
     return c.json({ error: "Internal Server Error" }, 500);
+  }
+});
+
+conversationRoute.put("/conversation/:conversationId/read", async (c) => {
+  const { conversationId } = c.req.param();
+  const authHeader = c.req.header("Authorization");
+  const user = await getUserByToken(c.env, authHeader);
+  const userId = user?.id;
+  if (!userId) {
+    return c.json({ error: "Missing userId" }, 400);
+  }
+  if (!conversationId) {
+    return c.json({ error: "Missing conversationId" }, 400);
+  }
+
+  try {
+    const conversationRead = await markConversationAsRead(
+      c.env,
+      userId,
+      conversationId
+    );
+    return c.json(conversationRead, 200);
+  } catch (error) {
+    console.error("Error in route handler:", error);
+    return c.json({ error: "Failed to mark conversation as read" }, 500);
   }
 });

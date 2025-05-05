@@ -1,4 +1,5 @@
 import { Business } from "./business";
+import { ConversationRead } from "./conversation-read";
 import { Message } from "./message";
 import { Notification } from "./notification";
 import { User } from "./user";
@@ -14,6 +15,7 @@ export class Conversation {
   updatedAt: Date;
   deletedAt?: Date;
   notification: Notification[];
+  reads:ConversationRead[];
 
   constructor(data: any) {
     this.id = data.id!;
@@ -26,5 +28,6 @@ export class Conversation {
     this.updatedAt = data.updatedAt!;
     this.deletedAt = data.deletedAt;
     this.notification = data.notification;
+    this.reads = data.reads || [];
   }
 }

@@ -1,3 +1,4 @@
+import { SenderType } from "../../models/enums";
 import { getUserByToken } from "../../services/user.service";
 
 export class NotificationRoom implements DurableObject {
@@ -35,24 +36,22 @@ export class NotificationRoom implements DurableObject {
         }
 
         const businessId = user.businessId;
-        console.log("User authenticated with businessId:", businessId);
 
         // Create WebSocket connection
         const pair = new WebSocketPair();
         const [client, server] = Object.values(pair);
 
-        // Store session based on user role
-        const adminIdentifier = `admin:${user.id}`;
-        this.sessions.set(adminIdentifier, server);
+        const rolePrefix = user.role === "ADMIN" ? "admin" : "client";
+        const identifier = `${rolePrefix}:${user.id}`;
+        this.sessions.set(identifier, server);
 
-        // Track sessions by business ID
         if (!this.businessSessions.has(businessId)) {
           this.businessSessions.set(businessId, new Set());
         }
-        this.businessSessions.get(businessId)?.add(adminIdentifier);
+        this.businessSessions.get(businessId)?.add(identifier);
 
         console.log(
-          `New WebSocket connection: ${adminIdentifier} for business: ${businessId}`
+          `New WebSocket connection: ${identifier} for business: ${businessId}`
         );
 
         // Accept the connection
@@ -72,9 +71,9 @@ export class NotificationRoom implements DurableObject {
 
         // Handle WebSocket events
         server.addEventListener("close", () => {
-          console.log("WebSocket closed, removing session:", adminIdentifier);
-          this.sessions.delete(adminIdentifier);
-          this.businessSessions.get(businessId)?.delete(adminIdentifier);
+          console.log("WebSocket closed, removing session:", identifier);
+          this.sessions.delete(identifier);
+          this.businessSessions.get(businessId)?.delete(identifier);
 
           // Clean up empty business sets
           if (this.businessSessions.get(businessId)?.size === 0) {
@@ -84,8 +83,8 @@ export class NotificationRoom implements DurableObject {
 
         server.addEventListener("error", (event) => {
           console.error("WebSocket error:", event);
-          this.sessions.delete(adminIdentifier);
-          this.businessSessions.get(businessId)?.delete(adminIdentifier);
+          this.sessions.delete(identifier);
+          this.businessSessions.get(businessId)?.delete(identifier);
         });
 
         // Return the client end of the WebSocket
@@ -99,7 +98,7 @@ export class NotificationRoom implements DurableObject {
     // Handle notification endpoint
     if (url.pathname === "/notify") {
       try {
-        const { businessId, type, payload } = await request.json();
+        const { businessId, type, payload, senderType } = await request.json();
 
         console.log("Notification request received:", {
           businessId,
@@ -116,17 +115,20 @@ export class NotificationRoom implements DurableObject {
         const messagesSent: string[] = [];
 
         if (adminSet && adminSet.size > 0) {
-          for (const adminIdentifier of adminSet) {
-            const socket = this.sessions.get(adminIdentifier);
-            if (socket && socket.readyState === WebSocket.OPEN) {
-              socket.send(JSON.stringify({ type, payload }));
-              messagesSent.push(adminIdentifier);
+          const targetPrefix =
+            senderType === SenderType.ADMIN ? "client" : "admin";
+          for (const identifier of adminSet) {
+            console.log("Checking identifier:", identifier);
+            if (identifier.startsWith(targetPrefix)) {
+              const socket = this.sessions.get(identifier);
+              if (socket && socket.readyState === WebSocket.OPEN) {
+                const notify = JSON.stringify({ type, payload });
+                socket.send(notify); // chỉ gửi đến đúng đối tượng
+                messagesSent.push(identifier);
+              }
             }
           }
 
-          console.log(
-            `Notification sent to ${messagesSent.length} admins for business ${businessId}`
-          );
           return new Response(
             JSON.stringify({
               success: true,

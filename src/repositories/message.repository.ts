@@ -117,11 +117,30 @@ export async function getMessageCount(
   conversationId: string
 ): Promise<number> {
   const prisma = getPrismaClient(env);
-  const count = await prisma.message.count({
+  return await prisma.message.count({
     where: {
       conversationId: conversationId,
       deletedAt: null,
     },
   });
-  return count;
+}
+
+export async function countUnreadMessages(
+  env: Env,
+  conversationId: string,
+  userId: string,
+  lastReadAt: Date
+): Promise<number> {
+  const prisma = getPrismaClient(env);
+  return await prisma.message.count({
+    where: {
+      conversationId,
+      createdAt: {
+        gt: lastReadAt, // Tin nhắn có createdAt lớn hơn lastReadAt
+      },
+      userId: {
+        not: userId, // Không đếm tin nhắn do chính user gửi
+      },
+    },
+  });
 }

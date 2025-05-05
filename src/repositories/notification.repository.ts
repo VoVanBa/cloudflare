@@ -20,6 +20,25 @@ export async function createNotification(
   return new Notification(notifi);
 }
 
+export async function getNotificationByConversation(
+  env: Env,
+  conversationId: string,
+  page: number = 1,
+  limit: number = 10
+): Promise<Notification[]> {
+  const prisma = getPrismaClient(env);
+  const skip = (page - 1) * limit;
+
+  const notifi = await prisma.notification.findMany({
+    where: { conversationId },
+    orderBy: { createdAt: "desc" },
+    skip,
+    take: limit,
+  });
+
+  return notifi.map((item) => new Notification(item));
+}
+
 export async function getNotificationsByUserId(
   env: Env,
   userId: string,
