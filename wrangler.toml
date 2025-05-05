@@ -45,15 +45,18 @@ database_id = "bfee1346-ed0d-47e2-ac06-4f1a2f88f50a"
 name = "CHAT_ROOMS"
 class_name = "ChatRoom"
 
+[[durable_objects.bindings]]
+name = "NOTIFICATION_ROOM"
+class_name = "NotificationRoom"
 [durable_objects]
-migrations = [
-  { tag = "v1", new_classes = ["ChatRoom"] }
-]
 
 # ✅ Thêm phần này nếu chưa có:
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["ChatRoom"]
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["NotificationRoom"]
 
 [vars]
 CLOUDINARY_CLOUD_NAME="de0zslyf7"

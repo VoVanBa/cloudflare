@@ -14,6 +14,7 @@ export async function createNotification(
       content: data.content,
       type: data.type,
       isRead: false,
+      conversationId: data.conversationId,
     },
   });
   return new Notification(notifi);

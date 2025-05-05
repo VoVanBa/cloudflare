@@ -1,6 +1,6 @@
 import { UserRole } from "../../models/enums";
 
-export type   CreateUserDto = {
+export type CreateUserDto = {
   email: string;
   name?: string;
   password: string;

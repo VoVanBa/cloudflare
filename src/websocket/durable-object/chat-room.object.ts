@@ -14,7 +14,7 @@ export class ChatRoom implements DurableObject {
   constructor(state: DurableObjectState, env: Env) {
     this.state = state;
     this.env = env;
-    this.handle = new WebSocketHandler();
+    this.handle = new WebSocketHandler(this.sessions);
     // để đảm bảo đồng bộ hóa an toàn khi khởi tạo
     this.state.blockConcurrencyWhile(async () => {
       const stored = await this.state.storage.get("conversationId");
@@ -30,7 +30,6 @@ export class ChatRoom implements DurableObject {
 
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
-    console.log("Request URL:", url);
     if (url.pathname === "/websocket") {
       // Kiểm tra header Upgrade để xác nhận là WebSocket
       if (request.headers.get("Upgrade")?.toLowerCase() !== "websocket") {
@@ -43,9 +42,7 @@ export class ChatRoom implements DurableObject {
 
       try {
         const token = url.searchParams.get("token");
-        console.log("Token from URL:", token);
         await this.handleSession(server, url, token);
-        // Trả về WebSocket client để client-side kết nối
         return new Response(null, { status: 101, webSocket: client });
       } catch (err) {
         console.error("WebSocket initialization failed:", err);
@@ -57,9 +54,8 @@ export class ChatRoom implements DurableObject {
   }
 
   async handleSession(socket: WebSocket, url: URL, token: string) {
-    const sessionId = crypto.randomUUID();
     const user = await getUserByToken(this.env, token);
-    console.log("User from token:", user);
+    console.log("User from token:", url);
     if (!user) {
       return new Response("Unauthorized", { status: 401 });
     }
@@ -82,6 +78,8 @@ export class ChatRoom implements DurableObject {
 
     // Trong handleSession của ChatRoom
     const identifier = isAdmin ? `admin:${userId}` : `client:${userId}`;
+    const businessId = url.searchParams.get("businessId");
+
     this.sessions.set(identifier, socket);
     console.log("Sessions after adding:", [...this.sessions.keys()]);
     console.log(this.sessions.get(identifier), "sessions");
@@ -104,6 +102,7 @@ export class ChatRoom implements DurableObject {
         this.env,
         conversationId,
         userId,
+        businessId,
         isAdmin,
         (message: string) => this.broadcast(message),
         (message: string, excludedId: string) =>

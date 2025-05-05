@@ -6,6 +6,8 @@ import {
 import { CreateMessageDto } from "../../dtos/request/message.dto";
 import { getUserById } from "../../repositories/user.repository";
 import { getCachedUserName } from "../../services/cache.service";
+import { createNewNotification } from "../../services/notification.service";
+import { NotificationType } from "../../models/enums";
 
 interface WebSocketMessage {
   type: string; // Loại message: SEND_MESSAGE, TYPING, REQUEST_HISTORY,...
@@ -25,12 +27,18 @@ export enum MessageType {
 }
 
 export class WebSocketHandler {
+  private sessions: Map<string, WebSocket>;
+
+  constructor(sessions: Map<string, WebSocket>) {
+    this.sessions = sessions;
+  }
   async handleWebSocketMessage(
     socket: WebSocket,
     message: string,
     env: Env,
     conversationId: string,
     userId: string,
+    businessId: string,
     isAdmin: boolean,
     broadcast: (message: string) => void,
     broadcastExcept: (message: string, excludedId: string) => void
@@ -50,6 +58,7 @@ export class WebSocketHandler {
             env,
             conversationId,
             userId,
+            businessId,
             isAdmin,
             broadcast,
             broadcastExcept
@@ -92,6 +101,7 @@ export class WebSocketHandler {
     env: Env,
     conversationId: string,
     userId: string,
+    businessId: string,
     isAdmin: boolean,
     broadcast: (message: string) => void,
     broadcastExcept: (message: string, excludedId: string) => void
@@ -114,7 +124,10 @@ export class WebSocketHandler {
 
     const message = await createMessage(env, messageDto);
     const senderName = message.user.name;
+    const senderIdentifier = isAdmin ? `admin:${userId}` : `client:${userId}`;
+    const recipientId = isAdmin ? `client:${userId}` : `admin:${userId}`;
 
+    const recipientSocket = this.sessions.get(recipientId);
     const newMessage = JSON.stringify({
       type: "NEW_MESSAGE",
       message: {
@@ -133,16 +146,51 @@ export class WebSocketHandler {
     });
 
     broadcast(newMessage);
+    console.log("Broadcasting message:", recipientSocket);
+    if (!recipientSocket) {
+      // Người nhận offline: Lưu notification
+      const notificationData = {
+        userId: message.user.id,
+        title: "New message",
+        content: message.content || "Sent an image",
+        type: NotificationType.NEW_MESSAGE,
+        conversationId,
+      };
+      await createNewNotification(env, notificationData);
 
-    if (!isAdmin && message) {
-      const senderIdentifier = isAdmin ? `admin:${userId}` : `client:${userId}`;
+      // Gửi thông báo tới NotificationRoom DO
+      const notifyData = {
+        userId: message.user.id,
+        businessId,
+        role: isAdmin ? "CLIENT" : "ADMIN",
+        type: NotificationType.NEW_MESSAGE,
+        payload: {
+          conversationId,
+          guestName: senderName,
+          message: message.content || "Sent an image",
+          timestamp: message.createdAt || new Date().toISOString(),
+        },
+      };
+
+      const notificationRoomId = env.NOTIFICATION_ROOM.idFromName(businessId);
+      const notificationRoomStub =
+        env.NOTIFICATION_ROOM.get(notificationRoomId);
+
+      await notificationRoomStub.fetch("https://dummy/notify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(notifyData),
+      });
+    } else {
+      // Người nhận đang online: gửi real-time
       const notificationMessage = JSON.stringify({
-        type: "NEW_CLIENT_MESSAGE",
+        type: "NOTIFICATION",
         conversationId,
         guestName: senderName,
         message: message.content || "Sent an image",
         timestamp: message.createdAt || new Date().toISOString(),
       });
+
       broadcastExcept(notificationMessage, senderIdentifier);
     }
   }
