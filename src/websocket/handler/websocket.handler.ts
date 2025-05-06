@@ -12,6 +12,7 @@ import {
   getUnreadCount,
   markConversationAsRead,
 } from "../../services/conversation-read.service";
+import { getMessageByConversationId } from "../../services/conversation.service";
 
 interface WebSocketMessage {
   type: string; // Loại message: SEND_MESSAGE, TYPING, REQUEST_HISTORY,...
@@ -99,7 +100,6 @@ export class WebSocketHandler {
     }
   }
 
-  // Handler cho SEND_MESSAGE
   private async handleSendMessage(
     socket: WebSocket,
     data: WebSocketMessage,
@@ -118,6 +118,7 @@ export class WebSocketHandler {
       return;
     }
 
+    // Tạo message trong database
     const messageDto: CreateMessageDto = {
       conversationId,
       content: data.content || "",
@@ -130,9 +131,18 @@ export class WebSocketHandler {
     const message = await createMessage(env, messageDto);
     const senderName = message.user.name;
     const senderIdentifier = isAdmin ? `admin:${userId}` : `client:${userId}`;
-    const recipientId = isAdmin ? `client:${userId}` : `admin:${userId}`;
 
-    const recipientSocket = this.sessions.get(recipientId);
+    // Quan trọng: Lấy thông tin conversation để biết clientId
+    const conversation = await getMessageByConversationId(env, conversationId);
+    if (!conversation) {
+      socket.send(JSON.stringify({ error: "Conversation not found" }));
+      return;
+    }
+
+    // Lấy ID của client trong cuộc trò chuyện này
+    const clientId = conversation.userId;
+
+    // Broadcast tin nhắn mới đến tất cả người dùng trong cuộc trò chuyện
     const newMessage = JSON.stringify({
       type: "NEW_MESSAGE",
       message: {
@@ -151,57 +161,71 @@ export class WebSocketHandler {
     });
 
     broadcast(newMessage);
-    console.log("Broadcasting message:", recipientSocket);
-    if (!recipientSocket) {
-      // Người nhận offline: Lưu notification
-      const notificationData = {
-        userId: message.user.id,
-        title: "New message",
-        content: message.content || "Sent an image",
-        type: NotificationType.NEW_MESSAGE,
-        conversationId,
-      };
-      await createNewNotification(env, notificationData);
 
-      // Gửi thông báo tới NotificationRoom DO
-      const notifyData = {
-        userId: message.user.id,
-        businessId,
-        role: isAdmin ? "CLIENT" : "ADMIN",
-        type: NotificationType.NEW_MESSAGE,
-        senderType: message.senderType,
-        payload: {
-          conversationId,
-          guestName: senderName,
-          message: message.content || "Sent an image",
-          timestamp: message.createdAt || new Date().toISOString(),
-        },
-      };
+    // Xác định người nhận thông báo
+    const targetRole = isAdmin ? "client" : "admin";
+    const targetUserId = isAdmin ? clientId : null; // Nếu admin gửi, target là clientId
 
-      const notificationRoomId = env.NOTIFICATION_ROOM.idFromName(businessId);
-      const notificationRoomStub =
-        env.NOTIFICATION_ROOM.get(notificationRoomId);
+    // Xác định socket của người nhận
+    const targetIdentifier = isAdmin ? `client:${clientId}` : "admin:*"; // Nếu client gửi, target là tất cả admin
+    const recipientSocket = this.sessions.get(targetIdentifier);
 
-      await notificationRoomStub.fetch("https://dummy/notify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(notifyData),
-      });
-    } else {
-      // Người nhận đang online: gửi real-time
-      const notificationMessage = JSON.stringify({
-        type: "NOTIFICATION",
+    console.log(
+      `Sending notification: sender=${senderIdentifier}, target=${targetIdentifier}`
+    );
+
+    // QUAN TRỌNG: Luôn gửi thông báo qua NotificationRoom
+    // Người nhận có thể online hoặc offline trên các thiết bị khác nhau
+    // NotificationRoom sẽ lo việc phân phát thông báo đến các kết nối hiện có
+
+    // Lưu notification vào database (cho cả online và offline)
+    const notificationData = {
+      userId: targetUserId, // ID của người nhận thông báo
+      title: isAdmin ? "Phản hồi mới" : "Tin nhắn mới",
+      content: message.content || "Đã gửi hình ảnh",
+      type: NotificationType.NEW_MESSAGE,
+      conversationId,
+    };
+    await createNewNotification(env, notificationData);
+
+    // Gửi thông báo tới NotificationRoom DO (cho cả online và offline)
+    const notifyData = {
+      businessId,
+      type: NotificationType.NEW_MESSAGE,
+      senderType: isAdmin ? "ADMIN" : "CLIENT",
+      targetUserId: targetUserId, // ID của client cần nhận thông báo
+      payload: {
         conversationId,
         guestName: senderName,
-        message: message.content || "Sent an image",
+        message: message.content || "Đã gửi hình ảnh",
         timestamp: message.createdAt || new Date().toISOString(),
-      });
+      },
+    };
 
-      broadcastExcept(notificationMessage, senderIdentifier);
-    }
+    const notificationRoomId = env.NOTIFICATION_ROOM.idFromName(businessId);
+    const notificationRoomStub = env.NOTIFICATION_ROOM.get(notificationRoomId);
+
+    console.log("Sending notification to room:", notifyData);
+
+    await notificationRoomStub.fetch("https://dummy/notify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(notifyData),
+    });
+
+    // Gửi thêm thông báo trực tiếp cho những người đang trong cuộc trò chuyện
+    // (ngoại trừ người gửi)
+    // const notificationMessage = JSON.stringify({
+    //   type: "NOTIFICATION",
+    //   conversationId,
+    //   guestName: senderName,
+    //   message: message.content || "Đã gửi hình ảnh",
+    //   timestamp: message.createdAt || new Date().toISOString(),
+    // });
+
+    // broadcastExcept(notificationMessage, senderIdentifier);
   }
-
-  // Handler cho TYPING
+  // Handler cho TYPING 
   private async handleTyping(
     socket: WebSocket,
     data: WebSocketMessage,

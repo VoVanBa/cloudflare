@@ -1,5 +1,6 @@
 import { NotificationDto } from "../dtos/request/notification.dto";
 import { NotificationType } from "../models/enums";
+import { findConversationById } from "../repositories/conversation.repository";
 import {
   createNotification,
   getNotificationsByUserId,
@@ -24,10 +25,10 @@ export const fetchNotifications = async (
 };
 
 export const markAsRead = async (env: Env, notificationId: string) => {
-  
   return markNotificationAsRead(env, notificationId);
 };
 
 export const removeNotification = async (env: Env, notificationId: string) => {
   return deleteNotification(env, notificationId);
 };
+

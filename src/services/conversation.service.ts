@@ -132,10 +132,12 @@ export const deleteConversationbyId = async (
   env: Env,
   conversationId: string
 ): Promise<any> => {
-  // const conversation = await findConversationById(env, conversationId);
-  // if (!conversation) {
-  //   throw new Error("Conversation not found");
-  // }
-  // Xóa cuộc trò chuyện
   await deleteConversation(env, conversationId);
+};
+export const getMessageByConversationId = async (
+  env: Env,
+  messageId: string
+): Promise<any> => {
+  const message = await findConversationById(env, messageId);
+  return message;
 };

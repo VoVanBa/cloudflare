@@ -1,11 +1,13 @@
-import { SenderType } from "../../models/enums";
 import { getUserByToken } from "../../services/user.service";
 
 export class NotificationRoom implements DurableObject {
   private sessions: Map<string, WebSocket> = new Map();
   private state: DurableObjectState;
   private env: Env;
-  private businessSessions: Map<string, Set<string>> = new Map();
+  private businessSessions: Map<
+    string,
+    { admin: Set<string>; client: Set<string> }
+  > = new Map();
 
   constructor(state: DurableObjectState, env: Env) {
     this.state = state;
@@ -15,8 +17,8 @@ export class NotificationRoom implements DurableObject {
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
     console.log("NotificationRoom: Request URL:", url.toString());
-    let businessId = "";
-    // Handle WebSocket connections
+
+    // Handle new WebSocket connection
     if (url.pathname === "/connect") {
       if (request.headers.get("Upgrade")?.toLowerCase() !== "websocket") {
         return new Response("Expected Upgrade: websocket", { status: 426 });
@@ -44,11 +46,21 @@ export class NotificationRoom implements DurableObject {
         const rolePrefix = user.role === "ADMIN" ? "admin" : "client";
         const identifier = `${rolePrefix}:${user.id}`;
         this.sessions.set(identifier, server);
+        console.log("Sessions after adding:", [...this.sessions.keys()]);
 
         if (!this.businessSessions.has(businessId)) {
-          this.businessSessions.set(businessId, new Set());
+          this.businessSessions.set(businessId, {
+            admin: new Set(),
+            client: new Set(),
+          });
         }
-        this.businessSessions.get(businessId)?.add(identifier);
+
+        const roleSet =
+          user.role === "ADMIN"
+            ? this.businessSessions.get(businessId)?.admin
+            : this.businessSessions.get(businessId)?.client;
+
+        roleSet?.add(identifier);
 
         console.log(
           `New WebSocket connection: ${identifier} for business: ${businessId}`
@@ -69,24 +81,6 @@ export class NotificationRoom implements DurableObject {
           })
         );
 
-        // Handle WebSocket events
-        server.addEventListener("close", () => {
-          console.log("WebSocket closed, removing session:", identifier);
-          this.sessions.delete(identifier);
-          this.businessSessions.get(businessId)?.delete(identifier);
-
-          // Clean up empty business sets
-          if (this.businessSessions.get(businessId)?.size === 0) {
-            this.businessSessions.delete(businessId);
-          }
-        });
-
-        server.addEventListener("error", (event) => {
-          console.error("WebSocket error:", event);
-          this.sessions.delete(identifier);
-          this.businessSessions.get(businessId)?.delete(identifier);
-        });
-
         // Return the client end of the WebSocket
         return new Response(null, { status: 101, webSocket: client });
       } catch (error) {
@@ -95,44 +89,79 @@ export class NotificationRoom implements DurableObject {
       }
     }
 
-    // Handle notification endpoint
+    // Handle sending notifications
     if (url.pathname === "/notify") {
       try {
-        const { businessId, type, payload, senderType } = await request.json();
+        const { businessId, type, payload, senderType, targetUserId } =
+          await request.json();
 
         console.log("Notification request received:", {
           businessId,
           type,
           payload,
+          senderType,
+          targetUserId,
         });
 
         if (!businessId) {
           return new Response("Business ID is required", { status: 400 });
         }
 
-        // Get all admin sessions for this business
-        const adminSet = this.businessSessions.get(businessId);
-        const messagesSent: string[] = [];
+        const businessSession = this.businessSessions.get(businessId);
+        if (businessSession) {
+          const targetRoleSet =
+            senderType === "ADMIN"
+              ? businessSession.client
+              : businessSession.admin;
+          let notifiedCount = 0;
 
-        if (adminSet && adminSet.size > 0) {
-          const targetPrefix =
-            senderType === SenderType.ADMIN ? "client" : "admin";
-          for (const identifier of adminSet) {
-            console.log("Checking identifier:", identifier);
-            if (identifier.startsWith(targetPrefix)) {
-              const socket = this.sessions.get(identifier);
-              if (socket && socket.readyState === WebSocket.OPEN) {
-                const notify = JSON.stringify({ type, payload });
-                socket.send(notify); // chỉ gửi đến đúng đối tượng
-                messagesSent.push(identifier);
-              }
+          console.log(
+            `Looking for ${
+              senderType === "ADMIN" ? "client" : "admin"
+            } sessions, targetUserId: ${targetUserId || "all"}`
+          );
+
+          for (const identifier of targetRoleSet || []) {
+            console.log(
+              `Checking identifier: ${identifier}, isTargetPrefix: ${identifier.startsWith(
+                senderType === "ADMIN" ? "client" : "admin"
+              )}`
+            );
+
+            if (targetUserId && !identifier.includes(targetUserId)) {
+              console.log(`Skipping session ${identifier}: not target user`);
+              continue;
+            }
+
+            const socket = this.sessions.get(identifier);
+            console.log(
+              `Socket for ${identifier}:`,
+              socket ? "Found" : "Not found"
+            );
+
+            if (socket && socket.readyState === WebSocket.OPEN) {
+              const notify = JSON.stringify({
+                type,
+                payload,
+                receivedAt: new Date().toISOString(),
+              });
+
+              console.log(`Sending notification to ${identifier}`);
+              socket.send(notify);
+              notifiedCount++;
+            } else {
+              console.log(`Socket for ${identifier} not available or closed`);
             }
           }
 
           return new Response(
             JSON.stringify({
-              success: true,
-              recipients: messagesSent.length,
+              success: notifiedCount > 0,
+              notifiedCount,
+              message:
+                notifiedCount === 0
+                  ? "No active client sessions found"
+                  : undefined,
             }),
             {
               headers: { "Content-Type": "application/json" },
@@ -143,7 +172,8 @@ export class NotificationRoom implements DurableObject {
         return new Response(
           JSON.stringify({
             success: false,
-            message: "No active admin sessions found for this business",
+            message: "No active sessions found for this business",
+            storedInDatabase: true, // Confirm notification saved
           }),
           {
             headers: { "Content-Type": "application/json" },
@@ -164,7 +194,6 @@ export class NotificationRoom implements DurableObject {
       }
     }
 
-    // Default response for unhandled paths
     return new Response("Not found", { status: 404 });
   }
 }
