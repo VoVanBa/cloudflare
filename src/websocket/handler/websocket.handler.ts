@@ -265,7 +265,7 @@ export class WebSocketHandler {
         type: NotificationType.MESSAGE_READ,
         senderType: isAdmin ? "ADMIN" : "CLIENT",
         targetUserId: isAdmin ? null : userId, // Nếu admin đọc thì thông báo cho tất cả client
-        targetRole: isAdmin ? "client" : "admin", // Nếu admin đọc thì thông báo cho client và ngược lại
+        targetRole: isAdmin ? "admin" : "client", // Nếu admin đọc thì thông báo cho client và ngược lại
         payload: {
           conversationId,
           readBy: userId,
