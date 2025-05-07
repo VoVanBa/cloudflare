@@ -88,6 +88,8 @@ export class WebSocketHandler {
             socket,
             conversationId,
             userId,
+            businessId,
+            isAdmin,
             broadcast
           );
           break;
@@ -163,37 +165,25 @@ export class WebSocketHandler {
     broadcast(newMessage);
 
     // Xác định người nhận thông báo
-    const targetRole = isAdmin ? "client" : "admin";
-    const targetUserId = isAdmin ? clientId : null; // Nếu admin gửi, target là clientId
+    let targetUserId: string | null = null;
+    let targetRole: string = "";
 
-    // Xác định socket của người nhận
-    const targetIdentifier = isAdmin ? `client:${clientId}` : "admin:*"; // Nếu client gửi, target là tất cả admin
-    const recipientSocket = this.sessions.get(targetIdentifier);
-
-    console.log(
-      `Sending notification: sender=${senderIdentifier}, target=${targetIdentifier}`
-    );
-
-    // QUAN TRỌNG: Luôn gửi thông báo qua NotificationRoom
-    // Người nhận có thể online hoặc offline trên các thiết bị khác nhau
-    // NotificationRoom sẽ lo việc phân phát thông báo đến các kết nối hiện có
-
-    // Lưu notification vào database (cho cả online và offline)
-    const notificationData = {
-      userId: targetUserId, // ID của người nhận thông báo
-      title: isAdmin ? "Phản hồi mới" : "Tin nhắn mới",
-      content: message.content || "Đã gửi hình ảnh",
-      type: NotificationType.NEW_MESSAGE,
-      conversationId,
-    };
-    await createNewNotification(env, notificationData);
+    if (isAdmin) {
+      // Nếu admin gửi, target là client cụ thể
+      targetUserId = clientId;
+      targetRole = "client";
+    } else {
+      // Nếu client gửi, target là tất cả admin của business
+      targetRole = "admin";
+    }
 
     // Gửi thông báo tới NotificationRoom DO (cho cả online và offline)
     const notifyData = {
       businessId,
       type: NotificationType.NEW_MESSAGE,
       senderType: isAdmin ? "ADMIN" : "CLIENT",
-      targetUserId: targetUserId, // ID của client cần nhận thông báo
+      targetUserId: targetUserId, // ID của người nhận thông báo
+      targetRole: targetRole, // Role của người nhận thông báo
       payload: {
         conversationId,
         guestName: senderName,
@@ -205,27 +195,13 @@ export class WebSocketHandler {
     const notificationRoomId = env.NOTIFICATION_ROOM.idFromName(businessId);
     const notificationRoomStub = env.NOTIFICATION_ROOM.get(notificationRoomId);
 
-    console.log("Sending notification to room:", notifyData);
-
     await notificationRoomStub.fetch("https://dummy/notify", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(notifyData),
     });
-
-    // Gửi thêm thông báo trực tiếp cho những người đang trong cuộc trò chuyện
-    // (ngoại trừ người gửi)
-    // const notificationMessage = JSON.stringify({
-    //   type: "NOTIFICATION",
-    //   conversationId,
-    //   guestName: senderName,
-    //   message: message.content || "Đã gửi hình ảnh",
-    //   timestamp: message.createdAt || new Date().toISOString(),
-    // });
-
-    // broadcastExcept(notificationMessage, senderIdentifier);
   }
-  // Handler cho TYPING 
+  // Handler cho TYPING
   private async handleTyping(
     socket: WebSocket,
     data: WebSocketMessage,
@@ -255,6 +231,8 @@ export class WebSocketHandler {
     socket: WebSocket,
     conversationId: string,
     userId: string,
+    businessId: string,
+    isAdmin: boolean,
     broadcast: (message: string) => void
   ) {
     if (!conversationId) {
@@ -270,7 +248,7 @@ export class WebSocketHandler {
         userId
       );
 
-      // Tạo thông báo WebSocket
+      // Tạo thông báo WebSocket cho cuộc trò chuyện hiện tại
       const readMessage = JSON.stringify({
         type: MessageType.MESSAGES_READ,
         conversationId,
@@ -278,8 +256,32 @@ export class WebSocketHandler {
         lastReadAt: readRecord.lastReadAt.toISOString(),
       });
 
-      // Phát thông báo tới tất cả client
+      // Phát thông báo tới tất cả client trong cuộc trò chuyện
       broadcast(readMessage);
+
+      // Gửi thông báo tới NotificationRoom DO
+      const notifyData = {
+        businessId,
+        type: NotificationType.MESSAGE_READ,
+        senderType: isAdmin ? "ADMIN" : "CLIENT",
+        targetUserId: isAdmin ? null : userId, // Nếu admin đọc thì thông báo cho tất cả client
+        targetRole: isAdmin ? "client" : "admin", // Nếu admin đọc thì thông báo cho client và ngược lại
+        payload: {
+          conversationId,
+          readBy: userId,
+          lastReadAt: readRecord.lastReadAt.toISOString(),
+        },
+      };
+
+      const notificationRoomId = env.NOTIFICATION_ROOM.idFromName(businessId);
+      const notificationRoomStub =
+        env.NOTIFICATION_ROOM.get(notificationRoomId);
+
+      await notificationRoomStub.fetch("https://dummy/notify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(notifyData),
+      });
     } catch (err) {
       console.error("Error marking messages as read:", err);
       socket.send(JSON.stringify({ error: "Failed to mark messages as read" }));

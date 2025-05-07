@@ -7,8 +7,8 @@ import { countUnreadMessages } from "./message.service";
 
 export async function markConversationAsRead(
   env: Env,
-  userId: string,
-  conversationId: string
+  conversationId: string,
+  userId: string
 ): Promise<ConversationRead> {
   try {
     // Call the repository function to update or create the conversation read record
