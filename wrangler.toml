@@ -17,9 +17,6 @@ database_id = "81df4afd-7b2e-426c-9e7e-c922b8d85f67"
 # Các phần bị comment trong JSON được giữ nguyên dưới dạng comment trong TOML
 # vars.MY_VAR = "my-variable"
 
-# [[kv_namespaces]]
-# binding = "MY_KV_NAMESPACE"
-# id = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 
 # [[r2_buckets]]
 # binding = "MY_BUCKET"
@@ -50,7 +47,6 @@ name = "NOTIFICATION_ROOM"
 class_name = "NotificationRoom"
 [durable_objects]
 
-# ✅ Thêm phần này nếu chưa có:
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["ChatRoom"]

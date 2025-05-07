@@ -7,7 +7,10 @@ import {
 } from "../services/conversation.service";
 import { getUserByToken } from "../services/user.service";
 import { markAsRead } from "../services/notification.service";
-import { markConversationAsRead } from "../services/conversation-read.service";
+import {
+  getUnreadCount,
+  markConversationAsRead,
+} from "../services/conversation-read.service";
 
 export const conversationRoute = new Hono<{ Bindings: Env }>();
 
@@ -118,7 +121,7 @@ conversationRoute.delete("/:id", async (c) => {
   }
 });
 
-conversationRoute.put("/conversation/:conversationId/read", async (c) => {
+conversationRoute.put("/:conversationId/read", async (c) => {
   const { conversationId } = c.req.param();
   const authHeader = c.req.header("Authorization");
   const user = await getUserByToken(c.env, authHeader);
@@ -140,5 +143,26 @@ conversationRoute.put("/conversation/:conversationId/read", async (c) => {
   } catch (error) {
     console.error("Error in route handler:", error);
     return c.json({ error: "Failed to mark conversation as read" }, 500);
+  }
+});
+
+conversationRoute.get("/:conversationId/unread-count", async (c) => {
+  const { conversationId } = c.req.param();
+  const authHeader = c.req.header("Authorization");
+  const user = await getUserByToken(c.env, authHeader);
+  const userId = user?.id;
+  if (!userId) {
+    return c.json({ error: "Missing userId" }, 400);
+  }
+  if (!conversationId) {
+    return c.json({ error: "Missing conversationId" }, 400);
+  }
+
+  try {
+    const unreadCount = await getUnreadCount(c.env, conversationId, userId);
+    return c.json({ count: unreadCount }, 200);
+  } catch (error) {
+    console.error("Error in route handler:", error);
+    return c.json({ error: "Failed to fetch unread count" }, 500);
   }
 });
