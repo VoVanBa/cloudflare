@@ -54,8 +54,8 @@ export class ChatRoom implements DurableObject {
   }
 
   async handleSession(socket: WebSocket, url: URL, token: string) {
+    console.log("WebSocket URL:", url.toString());
     const user = await getUserByToken(this.env, token);
-    console.log("User from token:", url);
     if (!user) {
       return new Response("Unauthorized", { status: 401 });
     }

@@ -22,6 +22,7 @@ interface WebSocketMessage {
   mediaIds?: string[];
   [key: string]: any;
 }
+
 export enum MessageType {
   SEND_MESSAGE = "SEND_MESSAGE",
   TYPING = "TYPING",
@@ -37,6 +38,7 @@ export class WebSocketHandler {
   constructor(sessions: Map<string, WebSocket>) {
     this.sessions = sessions;
   }
+
   async handleWebSocketMessage(
     socket: WebSocket,
     message: string,
@@ -112,7 +114,7 @@ export class WebSocketHandler {
     isAdmin: boolean,
     broadcast: (message: string) => void,
     broadcastExcept: (message: string, excludedId: string) => void
-  ) {
+  ): Promise<void> {
     if (!data.content && (!data.mediaIds || data.mediaIds.length === 0)) {
       socket.send(
         JSON.stringify({ error: "Missing message content or media" })
@@ -201,7 +203,7 @@ export class WebSocketHandler {
       body: JSON.stringify(notifyData),
     });
   }
-  // Handler cho TYPING
+
   private async handleTyping(
     socket: WebSocket,
     data: WebSocketMessage,
@@ -209,21 +211,13 @@ export class WebSocketHandler {
     userId: string,
     isAdmin: boolean,
     broadcastExcept: (message: string, excludedId: string) => void
-  ) {
-    try {
-      const senderIdentifier = isAdmin ? `admin:${userId}` : `client:${userId}`;
-      const displayName = await getCachedUserName(env, userId);
-
-      const typingMessage = JSON.stringify({
-        type: MessageType.TYPING,
-        name: displayName,
-        isAdmin,
-      });
-
-      broadcastExcept(typingMessage, senderIdentifier);
-    } catch (err) {
-      console.error("Error handling TYPING event:", err);
-    }
+  ): Promise<void> {
+    const typingMessage = JSON.stringify({
+      type: "TYPING",
+      userId,
+      isAdmin,
+    });
+    broadcastExcept(typingMessage, isAdmin ? `admin:${userId}` : `client:${userId}`);
   }
 
   private async handleMarkAsRead(
@@ -234,125 +228,37 @@ export class WebSocketHandler {
     businessId: string,
     isAdmin: boolean,
     broadcast: (message: string) => void
-  ) {
-    if (!conversationId) {
-      socket.send(JSON.stringify({ error: "Missing conversation ID" }));
-      return;
-    }
-
-    try {
-      // Cập nhật hoặc tạo bản ghi ConversationRead
-      const readRecord = await markConversationAsRead(
-        env,
-        conversationId,
-        userId
-      );
-
-      // Tạo thông báo WebSocket cho cuộc trò chuyện hiện tại
-      const readMessage = JSON.stringify({
-        type: MessageType.MESSAGES_READ,
-        conversationId,
-        readBy: userId,
-        lastReadAt: readRecord.lastReadAt.toISOString(),
-      });
-
-      // Phát thông báo tới tất cả client trong cuộc trò chuyện
-      broadcast(readMessage);
-
-      // Gửi thông báo tới NotificationRoom DO
-      const notifyData = {
-        businessId,
-        type: NotificationType.MESSAGE_READ,
-        senderType: isAdmin ? "ADMIN" : "CLIENT",
-        targetUserId: isAdmin ? null : userId, // Nếu admin đọc thì thông báo cho tất cả client
-        targetRole: isAdmin ? "client" : "admin", // Nếu admin đọc thì thông báo cho client và ngược lại
-        payload: {
-          conversationId,
-          readBy: userId,
-          lastReadAt: readRecord.lastReadAt.toISOString(),
-        },
-      };
-
-      const notificationRoomId = env.NOTIFICATION_ROOM.idFromName(businessId);
-      const notificationRoomStub =
-        env.NOTIFICATION_ROOM.get(notificationRoomId);
-
-      await notificationRoomStub.fetch("https://dummy/notify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(notifyData),
-      });
-    } catch (err) {
-      console.error("Error marking messages as read:", err);
-      socket.send(JSON.stringify({ error: "Failed to mark messages as read" }));
-    }
+  ): Promise<void> {
+    await markConversationAsRead(env, conversationId, userId);
+    const readMessage = JSON.stringify({
+      type: "MESSAGES_READ",
+      userId,
+      isAdmin,
+    });
+    broadcast(readMessage);
   }
 
-  // Handler cho REQUEST_HISTORY
   private async handleRequestHistory(
     socket: WebSocket,
     data: WebSocketMessage,
     env: Env,
     conversationId: string
-  ) {
+  ): Promise<void> {
     const page = data.page || 1;
-    const limit = data.limit || 10;
-    const conversation = await getAllMessage(env, conversationId, page, limit);
-
-    if (conversation?.messages) {
-      socket.send(
-        JSON.stringify({
-          type: MessageType.HISTORY,
-          messages: conversation.messages.map((m) => ({
-            id: m.id,
-            content: m.content,
-            senderType: m.senderType,
-            createdAt: m.createdAt,
-            media:
-              m.media?.map((item) => ({
-                id: item?.id,
-                url: item?.url,
-              })) || [],
-          })),
-        })
-      );
-    } else {
-      socket.send(JSON.stringify({ error: "Conversation not found" }));
-    }
+    const limit = data.limit || 20;
+    const messages = await getMessageByConversationId(env, conversationId);
+    socket.send(JSON.stringify({
+      type: "HISTORY",
+      messages,
+    }));
   }
 
-  // Khởi tạo kết nối WebSocket
   async initializeWebSocketConnection(
     socket: WebSocket,
     env: Env,
     conversationId: string,
     userId: string
   ): Promise<void> {
-    try {
-      const messagesExisting = await getAllMessage(env, conversationId);
-      const unreadCount = await getUnreadCount(env, conversationId, userId);
-      if (messagesExisting?.messages) {
-        socket.send(
-          JSON.stringify({
-            type: MessageType.HISTORY,
-            messages: messagesExisting.messages.map((m) => ({
-              id: m.id,
-              content: m.content,
-              senderType: m.senderType,
-              createdAt: m.createdAt,
-              media:
-                m.media?.map((item) => ({
-                  id: item?.id,
-                  url: item?.url,
-                })) || [],
-            })),
-            unreadCount,
-          })
-        );
-      }
-    } catch (err) {
-      console.error("Error sending history:", err);
-      socket.send(JSON.stringify({ error: "Failed to load history" }));
-    }
+    // Khởi tạo kết nối WebSocket
   }
 }

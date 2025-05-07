@@ -19,7 +19,6 @@ export const getCachedUserName = async (
     });
     return user.name;
   }
-  return "Guest";
 };
 
 // Cache lịch sử tin nhắn từ KV
