@@ -228,14 +228,60 @@ export class WebSocketHandler {
     businessId: string,
     isAdmin: boolean,
     broadcast: (message: string) => void
-  ): Promise<void> {
-    await markConversationAsRead(env, conversationId, userId);
-    const readMessage = JSON.stringify({
-      type: "MESSAGES_READ",
-      userId,
-      isAdmin,
-    });
-    broadcast(readMessage);
+
+  ) {
+    if (!conversationId) {
+      socket.send(JSON.stringify({ error: "Missing conversation ID" }));
+      return;
+    }
+
+    try {
+      // Cập nhật hoặc tạo bản ghi ConversationRead
+      const readRecord = await markConversationAsRead(
+        env,
+        conversationId,
+        userId
+      );
+
+      // Tạo thông báo WebSocket cho cuộc trò chuyện hiện tại
+      const readMessage = JSON.stringify({
+        type: MessageType.MESSAGES_READ,
+        conversationId,
+        readBy: userId,
+        lastReadAt: readRecord.lastReadAt.toISOString(),
+      });
+
+      // Phát thông báo tới tất cả client trong cuộc trò chuyện
+      broadcast(readMessage);
+
+      // Gửi thông báo tới NotificationRoom DO
+      const notifyData = {
+        businessId,
+        type: NotificationType.MESSAGE_READ,
+        senderType: isAdmin ? "ADMIN" : "CLIENT",
+        targetUserId: isAdmin ? null : userId, // Nếu admin đọc thì thông báo cho tất cả client
+        targetRole: isAdmin ? "admin" : "client", // Nếu admin đọc thì thông báo cho client và ngược lại
+        payload: {
+          conversationId,
+          readBy: userId,
+          lastReadAt: readRecord.lastReadAt.toISOString(),
+        },
+      };
+
+      const notificationRoomId = env.NOTIFICATION_ROOM.idFromName(businessId);
+      const notificationRoomStub =
+        env.NOTIFICATION_ROOM.get(notificationRoomId);
+
+      await notificationRoomStub.fetch("https://dummy/notify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(notifyData),
+      });
+    } catch (err) {
+      console.error("Error marking messages as read:", err);
+      socket.send(JSON.stringify({ error: "Failed to mark messages as read" }));
+    }
+
   }
 
   private async handleRequestHistory(
