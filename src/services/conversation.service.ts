@@ -83,23 +83,20 @@ export const createConversation = async (
   env: Env,
   data: CreateConversationRequestDto
 ): Promise<any> => {
-  // Kiểm tra xem đã có cuộc trò chuyện với userId hoặc guestId chưa
   const existClient = await getConversationClientId(env, data.userId);
   console.log(existClient, "sssss");
 
-  // Nếu chưa có cuộc trò chuyện, tạo mới
   if (!existClient) {
     const conversation = await create(env, data);
 
     return {
       id: conversation.id,
-      userId: conversation.userId, // gửi lại FE để lưu vào localStorage (nếu là user)
+      userId: conversation.userId, 
     };
   } else {
-    // Nếu cuộc trò chuyện đã tồn tại, có thể trả về thông tin cuộc trò chuyện hiện tại
     return {
       id: existClient.id,
-      userId: existClient.userId, // nếu có userId
+      userId: existClient.userId, 
     };
   }
 };

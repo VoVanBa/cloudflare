@@ -90,7 +90,8 @@ export class WebSocketHandler {
             userId,
             businessId,
             isAdmin,
-            broadcast
+            broadcast,
+            broadcastExcept
           );
           break;
         default:
@@ -132,7 +133,6 @@ export class WebSocketHandler {
 
     const message = await createMessage(env, messageDto);
     const senderName = message.user.name;
-    const senderIdentifier = isAdmin ? `admin:${userId}` : `client:${userId}`;
 
     // Quan trọng: Lấy thông tin conversation để biết clientId
     const conversation = await getMessageByConversationId(env, conversationId);
@@ -219,7 +219,6 @@ export class WebSocketHandler {
         name: displayName,
         isAdmin,
       });
-
       broadcastExcept(typingMessage, senderIdentifier);
     } catch (err) {
       console.error("Error handling TYPING event:", err);
@@ -233,7 +232,8 @@ export class WebSocketHandler {
     userId: string,
     businessId: string,
     isAdmin: boolean,
-    broadcast: (message: string) => void
+    broadcast: (message: string) => void,
+    broadcastExcept: (message: string, excludedId: string) => void
   ) {
     if (!conversationId) {
       socket.send(JSON.stringify({ error: "Missing conversation ID" }));
@@ -247,17 +247,17 @@ export class WebSocketHandler {
         conversationId,
         userId
       );
-
+      const displayName = await getCachedUserName(env, userId);
       // Tạo thông báo WebSocket cho cuộc trò chuyện hiện tại
       const readMessage = JSON.stringify({
         type: MessageType.MESSAGES_READ,
         conversationId,
-        readBy: userId,
+        readBy: displayName,
         lastReadAt: readRecord.lastReadAt.toISOString(),
       });
 
       // Phát thông báo tới tất cả client trong cuộc trò chuyện
-      broadcast(readMessage);
+      broadcastExcept(readMessage, `client:${userId}`);
 
       // Gửi thông báo tới NotificationRoom DO
       const notifyData = {

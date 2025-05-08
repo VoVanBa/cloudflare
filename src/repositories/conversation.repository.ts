@@ -8,6 +8,7 @@ export async function create(
 ): Promise<Conversation> {
   const prisma = getPrismaClient(env);
 
+  console.log(data, "data");
   const conversation = await prisma.conversation.create({
     data: {
       userId: data.userId,
@@ -61,6 +62,7 @@ export async function findAllConversations(
     include: {
       messages: true,
       user: true,
+      reads: true,
     },
     orderBy: {
       createdAt: "desc",
