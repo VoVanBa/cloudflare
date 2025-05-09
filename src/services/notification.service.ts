@@ -6,6 +6,7 @@ import {
   getNotificationsByUserId,
   markNotificationAsRead,
   deleteNotification,
+  getNotificationByConversation,
 } from "../repositories/notification.repository";
 
 export const createNewNotification = async (
@@ -18,17 +19,29 @@ export const createNewNotification = async (
 export const fetchNotifications = async (
   env: Env,
   userId: string,
-  page: number = 1,
-  limit: number = 10
 ) => {
-  return getNotificationsByUserId(env, userId, page, limit);
+  return getNotificationsByUserId(env, userId);
 };
 
 export const markAsRead = async (env: Env, notificationId: string) => {
-  return markNotificationAsRead(env, notificationId);
+
+  const notificationIds = await fetchNotificationsByConversationId(env, notificationId);
+
+  return markNotificationAsRead(env, notificationIds.map(notification => notification.id));
 };
 
 export const removeNotification = async (env: Env, notificationId: string) => {
   return deleteNotification(env, notificationId);
 };
 
+export const fetchNotificationsByConversationId = async (
+  env: Env,
+  conversationId: string
+) => {
+  return getNotificationByConversation(env, conversationId);
+};
+
+// export const markAsReadByConversationId = async (env: Env, conversationId: string) => {
+//   const notificationIds = await fetchNotificationsByConversationId(env, conversationId);
+//   return markNotificationAsRead(env, notificationIds);
+// };

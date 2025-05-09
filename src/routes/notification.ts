@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { fetchNotifications } from "../services/notification.service";
+import { fetchNotifications, markAsRead } from "../services/notification.service";
 
 export const notifiRoute = new Hono<{ Bindings: Env }>();
 
@@ -16,4 +16,10 @@ notifiRoute.get("/", async (c) => {
     console.error("Error fetching messages:", error);
     return c.json({ error: "Internal Server Error" }, 500);
   }
+});
+
+notifiRoute.post("/mark-as-read", async (c) => {
+  const notificationId = c.req.json();
+  const notifi = await markAsRead(c.env, notificationId);
+  return c.json(notifi, 200);
 });

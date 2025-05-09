@@ -13,6 +13,7 @@ import {
   markConversationAsRead,
 } from "../../services/conversation-read.service";
 import { getMessageByConversationId } from "../../services/conversation.service";
+import { assignAdminToConversation } from "../../services/admin-assignment.service";
 
 interface WebSocketMessage {
   type: string; // Loại message: SEND_MESSAGE, TYPING, REQUEST_HISTORY,...
@@ -150,6 +151,54 @@ export class WebSocketHandler {
     // Lấy ID của client trong cuộc trò chuyện này
     const clientId = conversation.userId;
 
+    // Kiểm tra xem đây có phải là tin nhắn đầu tiên của client không
+    if (!isAdmin) {
+      const existingMessages = await getAllMessage(env, conversationId);
+      const isFirstMessage = existingMessages?.messages?.length === 1; // Nếu chỉ có 1 tin nhắn (tin nhắn hiện tại)
+
+      if (isFirstMessage) {
+        try {
+          // Lấy danh sách admin của business
+          const admin = await getUserById(env, businessId);
+          if (admin && admin.role === "ADMIN") {
+            // Tạo thông báo về cuộc trò chuyện mới cho tất cả admin
+            await createNewNotification(env, {
+              conversationId,
+              title: "Cuộc trò chuyện mới cần xử lý",
+              content: `${senderName} đã bắt đầu cuộc trò chuyện mới. Nhấn để nhận xử lý.`,
+              type: NotificationType.CONVERSATION_NEW
+            });
+
+            // Gửi thông báo realtime qua WebSocket cho tất cả admin
+            const notifyData = {
+              businessId,
+              type: NotificationType.CONVERSATION_NEW,
+              senderType: "CLIENT",
+              targetRole: "admin", // Gửi cho tất cả admin
+              payload: {
+                conversationId,
+                guestName: senderName,
+                message: "Cuộc trò chuyện mới cần xử lý",
+                timestamp: new Date().toISOString(),
+                action: "ASSIGN_CONVERSATION" // Thêm action để frontend biết đây là thông báo có thể nhận
+              },
+            };
+
+            const notificationRoomId = env.NOTIFICATION_ROOM.idFromName(businessId);
+            const notificationRoomStub = env.NOTIFICATION_ROOM.get(notificationRoomId);
+
+            await notificationRoomStub.fetch("https://dummy/notify", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(notifyData),
+            });
+          }
+        } catch (error) {
+          console.error("Error handling new conversation:", error);
+        }
+      }
+    }
+
     // Broadcast tin nhắn mới đến tất cả người dùng trong cuộc trò chuyện
     const newMessage = JSON.stringify({
       type: "NEW_MESSAGE",
@@ -183,26 +232,10 @@ export class WebSocketHandler {
       targetRole = "admin";
     }
 
-    // Kiểm tra xem đây có phải là tin nhắn đầu tiên của client không
-    if (!isAdmin) {
-      const existingMessages = await getAllMessage(env, conversationId);
-      const isFirstMessage = existingMessages?.messages?.length === 1; // Nếu chỉ có 1 tin nhắn (tin nhắn hiện tại)
-
-      if (isFirstMessage) {
-        // Chỉ tạo notification khi là tin nhắn đầu tiên của client
-        await createNewNotification(env, {
-          conversationId,
-          title: "Khách hàng mới",
-          content: `${senderName} đã bắt đầu cuộc trò chuyện mới`,
-          type: NotificationType.CONVERSATION_NEW,
-        });
-      }
-    }
-
     // Gửi thông báo tới NotificationRoom DO (cho cả online và offline)
     const notifyData = {
       businessId,
-      type: NotificationType.CONVERSATION_NEW,
+      type: NotificationType.NEW_MESSAGE,
       senderType: isAdmin ? "ADMIN" : "CLIENT",
       targetUserId: targetUserId,
       targetRole: targetRole,

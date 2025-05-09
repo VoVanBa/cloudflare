@@ -1,6 +1,8 @@
 import { Conversation } from "./../models/conversation";
 import { getPrismaClient } from "../untils/db";
 import { CreateConversationRequestDto } from "../dtos/request/conversation.dto";
+import { ConversationStatus } from "../models/enums";
+import { UpdateConversationRequestDto } from "../dtos/request/admin-assignment.dto";
 
 export async function create(
   env: Env,
@@ -31,7 +33,7 @@ export async function findConversationById(
     where: { id },
     include: { messages: true },
   });
-  return new Conversation(conversation);
+  return conversation ? new Conversation(conversation) : null;
 }
 
 export async function findConversationByBusinessId(
@@ -44,12 +46,13 @@ export async function findConversationByBusinessId(
     where: { id },
     include: { messages: true },
   });
-  return new Conversation(conversation);
+  return conversation ? new Conversation(conversation) : null;
 }
 
 export async function findAllConversations(
   env: Env,
   businessId: string,
+  userId: string,
   page: number = 1,
   limit: number = 10
 ): Promise<Conversation[]> {
@@ -58,11 +61,25 @@ export async function findAllConversations(
   const conversations = await prisma.conversation.findMany({
     where: {
       businessId,
+      AND: [
+        {
+          assignments: {
+            some: {
+              adminId: userId,
+            }
+          }
+        }
+      ]
     },
     include: {
       messages: true,
       user: true,
       notification: true,
+      assignments: {
+        include: {
+          admin: true
+        }
+      }
     },
     orderBy: {
       createdAt: "desc",
@@ -74,7 +91,6 @@ export async function findAllConversations(
   return conversations.map((conversation) => new Conversation(conversation));
 }
 
-// Gán userId vào conversation sau khi login thành công
 export async function linkConversationWithUser(
   env: Env,
   conversationId: string,
@@ -106,13 +122,11 @@ export async function getConversationClientId(
 ): Promise<Conversation | null> {
   const prisma = getPrismaClient(env);
 
-  // Tạo điều kiện tìm kiếm dựa trên userId hoặc guestId
   const filter: any = {};
   if (userId) {
     filter.userId = userId;
   }
 
-  // Tìm cuộc trò chuyện đầu tiên thỏa mãn điều kiện
   const conversation = await prisma.conversation.findFirst({
     where: filter,
     include: {
@@ -120,18 +134,17 @@ export async function getConversationClientId(
     },
   });
 
-  // Trả về đối tượng Conversation nếu tìm thấy, nếu không trả về null
   return conversation ? new Conversation(conversation) : null;
 }
 
 export async function updateCreateAt(
   env: Env,
-  consersationId: string
+  conversationId: string
 ): Promise<void> {
   const prisma = getPrismaClient(env);
   await prisma.conversation.update({
     where: {
-      id: consersationId,
+      id: conversationId,
     },
     data: {
       createdAt: new Date(),

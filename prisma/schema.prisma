@@ -13,16 +13,17 @@ model User {
   email         String             @unique
   password      String
   name          String?
-  role          UserRole           @default(CLIENT)
   businessId    String?
-  business      Business?          @relation(fields: [businessId], references: [id])
-  conversations Conversation[]
-  messages      Message[]
   createdAt     DateTime           @default(now())
   updatedAt     DateTime           @updatedAt
   deletedAt     DateTime?
+  role          UserRole           @default(CLIENT)
+  business      Business?          @relation(fields: [businessId], references: [id])
+  conversations Conversation[]
+  messages      Message[]
   notification  Notification[]
   reads         ConversationRead[]
+  assignments   AdminAssignment[]
 }
 
 model Business {
@@ -42,22 +43,24 @@ model Conversation {
   createdAt    DateTime           @default(now())
   updatedAt    DateTime           @updatedAt
   deletedAt    DateTime?
+  status       ConversationStatus @default(OPEN)
   notification Notification[]
   messages     Message[]
   user         User?              @relation(fields: [userId], references: [id])
   business     Business           @relation(fields: [businessId], references: [id])
   reads        ConversationRead[]
+  assignments  AdminAssignment[]
 
   @@index([businessId])
 }
 
 model ConversationRead {
-  id             String   @id @default(cuid())
+  id             String       @id @default(cuid())
   userId         String
   conversationId String
-  lastReadAt     DateTime @default(now())
-  user         User         @relation(fields: [userId], references: [id])
-  conversation Conversation @relation(fields: [conversationId], references: [id])
+  lastReadAt     DateTime     @default(now())
+  user           User         @relation(fields: [userId], references: [id])
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
 
   @@unique([userId, conversationId])
 }
@@ -112,6 +115,16 @@ model Media {
   messages   MessageOnMedia[]
 }
 
+model AdminAssignment {
+  id             String           @id @default(cuid())
+  conversationId String
+  adminId        String
+  assignedAt     DateTime         @default(now())
+  status         AssignmentStatus @default(ACTIVE)
+  conversation   Conversation     @relation(fields: [conversationId], references: [id])
+  admin          User             @relation(fields: [adminId], references: [id])
+}
+
 enum NotificationType {
   NEW_MESSAGE
   SYSTEM
@@ -136,4 +149,17 @@ enum ChatType {
   VIDEO
   FILE
   AUDIO
+}
+
+enum AssignmentStatus {
+  ACTIVE
+  COMPLETED
+  TRANSFERRED
+  CANCELLED
+}
+
+enum ConversationStatus {
+  OPEN
+  CLOSED
+  PENDING
 }

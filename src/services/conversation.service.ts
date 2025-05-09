@@ -10,6 +10,11 @@ import {
   updateCreateAt,
 } from "../repositories/conversation.repository";
 import { MessageResponseDto } from "../dtos/response/auth/message.dto";
+import {
+  fetchNotifications,
+  fetchNotificationsByConversationId,
+} from "./notification.service";
+import { getUnreadCount } from "./conversation-read.service";
 
 export const getConversationById = async (env: Env, conversationId: string) => {
   const conversation = await findConversationById(env, conversationId);
@@ -54,30 +59,40 @@ export const getConversationMessage = async (
 export const getAllConversations = async (
   env: Env,
   businessId: string,
+  userId: string,
   page: number = 1,
   limit: number = 10
 ): Promise<any> => {
   const conversations = await findAllConversations(
     env,
     businessId,
+    userId,
     page,
     limit
   );
+  console.log(conversations, "conversations");
 
   const conversationsWithMessages = conversations.filter(
     (conversation) => conversation.messages && conversation.messages.length > 0
   );
 
+  const conversationsWithUnreadCount = await Promise.all(
+    conversationsWithMessages.map(async (conversation) => {
+      const unreadCount = await getUnreadCount(
+        env,
+        conversation.id,
+        conversation.userId
+      );
+      return {
+        id: conversation.id,
+        name: conversation.user?.name || "Anonymous Guest",
+        unreadCount: unreadCount,
+      };
+    })
+  );
+
   return {
-    data: conversationsWithMessages.map((conversation) => ({
-      id: conversation.id,
-      name: conversation.user.name,
-      notification: conversation.notification.map((noti) => ({
-        id: noti.id,
-        content: noti.content,
-        isRead: noti.isRead,
-      })),
-    })),
+    data: conversationsWithUnreadCount,
     page,
     limit,
     total: conversationsWithMessages.length,

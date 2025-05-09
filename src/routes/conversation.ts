@@ -63,6 +63,12 @@ conversationRoute.get("all/:businessId", async (c) => {
   const businessId = c.req.param("businessId");
   const page = Number(c.req.query("page")) || 1;
   const limit = Number(c.req.query("limit")) || 10;
+  const authHeader = c.req.header("Authorization");
+  const user = await getUserByToken(c.env, authHeader);
+  const userId = user?.id;
+  if (!userId) {
+    return c.json({ error: "Missing userId" }, 400);
+  }
   if (!businessId) {
     return c.json({ error: "Missing conversationId" }, 400);
   }
@@ -70,6 +76,7 @@ conversationRoute.get("all/:businessId", async (c) => {
     const conversation = await getAllConversations(
       c.env,
       businessId,
+      userId,
       page,
       limit
     );

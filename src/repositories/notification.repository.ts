@@ -22,18 +22,13 @@ export async function createNotification(
 
 export async function getNotificationByConversation(
   env: Env,
-  conversationId: string,
-  page: number = 1,
-  limit: number = 10
+  conversationId: string
 ): Promise<Notification[]> {
   const prisma = getPrismaClient(env);
-  const skip = (page - 1) * limit;
 
   const notifi = await prisma.notification.findMany({
-    where: { conversationId },
+    where: { conversationId, isRead: false },
     orderBy: { createdAt: "desc" },
-    skip,
-    take: limit,
   });
 
   return notifi.map((item) => new Notification(item));
@@ -60,11 +55,11 @@ export async function getNotificationsByUserId(
 
 export async function markNotificationAsRead(
   env: Env,
-  notificationId: string
+  notificationId: string[]
 ): Promise<Notification> {
   const prisma = getPrismaClient(env);
-  const notifi = await prisma.notification.update({
-    where: { id: notificationId },
+  const notifi = await prisma.notification.updateMany({
+    where: { id: { in: notificationId } },
     data: { isRead: true },
   });
   return new Notification(notifi);
