@@ -62,7 +62,7 @@ export async function findAllConversations(
     include: {
       messages: true,
       user: true,
-      reads: true,
+      notification: true,
     },
     orderBy: {
       createdAt: "desc",

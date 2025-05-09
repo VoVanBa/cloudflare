@@ -132,6 +132,12 @@ export class WebSocketHandler {
     };
 
     const message = await createMessage(env, messageDto);
+    await createNewNotification(env, {
+      conversationId,
+      title: "Tin nhắn mới",
+      content: message.content || "Đã gửi hình ảnh",
+      type: NotificationType.NEW_MESSAGE,
+    });
     const senderName = message.user.name;
 
     // Quan trọng: Lấy thông tin conversation để biết clientId
@@ -177,13 +183,29 @@ export class WebSocketHandler {
       targetRole = "admin";
     }
 
+    // Kiểm tra xem đây có phải là tin nhắn đầu tiên của client không
+    if (!isAdmin) {
+      const existingMessages = await getAllMessage(env, conversationId);
+      const isFirstMessage = existingMessages?.messages?.length === 1; // Nếu chỉ có 1 tin nhắn (tin nhắn hiện tại)
+
+      if (isFirstMessage) {
+        // Chỉ tạo notification khi là tin nhắn đầu tiên của client
+        await createNewNotification(env, {
+          conversationId,
+          title: "Khách hàng mới",
+          content: `${senderName} đã bắt đầu cuộc trò chuyện mới`,
+          type: NotificationType.CONVERSATION_NEW,
+        });
+      }
+    }
+
     // Gửi thông báo tới NotificationRoom DO (cho cả online và offline)
     const notifyData = {
       businessId,
-      type: NotificationType.NEW_MESSAGE,
+      type: NotificationType.CONVERSATION_NEW,
       senderType: isAdmin ? "ADMIN" : "CLIENT",
-      targetUserId: targetUserId, // ID của người nhận thông báo
-      targetRole: targetRole, // Role của người nhận thông báo
+      targetUserId: targetUserId,
+      targetRole: targetRole,
       payload: {
         conversationId,
         guestName: senderName,

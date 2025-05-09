@@ -1,4 +1,4 @@
-import { name } from "drizzle-orm";
+import { Name, name } from "drizzle-orm";
 import { CreateConversationRequestDto } from "../dtos/request/conversation.dto";
 import {
   create,
@@ -71,7 +71,12 @@ export const getAllConversations = async (
   return {
     data: conversationsWithMessages.map((conversation) => ({
       id: conversation.id,
-      name: conversation.user?.name,
+      name: conversation.user.name,
+      notification: conversation.notification.map((noti) => ({
+        id: noti.id,
+        content: noti.content,
+        isRead: noti.isRead,
+      })),
     })),
     page,
     limit,
@@ -91,12 +96,12 @@ export const createConversation = async (
 
     return {
       id: conversation.id,
-      userId: conversation.userId, 
+      userId: conversation.userId,
     };
   } else {
     return {
       id: existClient.id,
-      userId: existClient.userId, 
+      userId: existClient.userId,
     };
   }
 };
