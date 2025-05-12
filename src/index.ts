@@ -9,6 +9,7 @@ import { ChatRoom } from "./websocket/durable-object/chat-room.object"; // Impor
 import { Env } from "./types";
 import { mediaRoute } from "./routes/media";
 import { notifiRoute } from "./routes/notification";
+import { adminAssignmentRoute } from "./routes/admin-assignment";
 export { ChatRoom }; // Xuất khẩu class ChatRoom để Cloudflare Worker biết
 export { NotificationRoom } from "./websocket/durable-object/nottifi-room.object"; // Xuất khẩu class NotificationRoom để Cloudflare Worker biết
 
@@ -32,7 +33,8 @@ app.route("/conversation", conversationRoute);
 app.route("/business", businessRoute);
 app.route("/messages", messageRoute);
 app.route("/media", mediaRoute);
-app.route("/notification", notifiRoute); // Assuming you have a route for notifications
+app.route("/notification", notifiRoute);
+app.route("/admin-assignment", adminAssignmentRoute);
 app.get("/chat/websocket", async (c) => {
   try {
     const { conversationId, token, businessId } = c.req.query();

@@ -4,7 +4,10 @@ import {
   getMessageById,
 } from "../../services/message.service";
 import { CreateMessageDto } from "../../dtos/request/message.dto";
-import { getUserById } from "../../repositories/user.repository";
+import {
+  getAllUserAdminByBusinessId,
+  getUserById,
+} from "../../repositories/user.repository";
 import { getCachedUserName } from "../../services/cache.service";
 import { createNewNotification } from "../../services/notification.service";
 import { NotificationType } from "../../models/enums";
@@ -12,25 +15,11 @@ import {
   getUnreadCount,
   markConversationAsRead,
 } from "../../services/conversation-read.service";
-import { getMessageByConversationId } from "../../services/conversation.service";
+import { getByConversationId } from "../../services/conversation.service";
 import { assignAdminToConversation } from "../../services/admin-assignment.service";
-
-interface WebSocketMessage {
-  type: string; // Loại message: SEND_MESSAGE, TYPING, REQUEST_HISTORY,...
-  content?: string;
-  page?: number;
-  limit?: number;
-  mediaIds?: string[];
-  [key: string]: any;
-}
-export enum MessageType {
-  SEND_MESSAGE = "SEND_MESSAGE",
-  TYPING = "TYPING",
-  REQUEST_HISTORY = "REQUEST_HISTORY",
-  MARK_AS_READ = "MARK_AS_READ",
-  HISTORY = "HISTORY",
-  MESSAGES_READ = "MESSAGES_READ",
-}
+import { findActiveByConversationId } from "../../repositories/admin-assignment.repository";
+import { WebSocketMessage } from "../../dtos/request/websocket-message.dto";
+import { MessageType } from "../../constants/message-type.enum";
 
 export class WebSocketHandler {
   private sessions: Map<string, WebSocket>;
@@ -122,14 +111,13 @@ export class WebSocketHandler {
       return;
     }
 
-    // Tạo message trong database
     const messageDto: CreateMessageDto = {
       conversationId,
       content: data.content || "",
       senderType: isAdmin ? "ADMIN" : "CLIENT",
       userId,
       mediaIds: data.mediaIds,
-      chatType: "",
+      chatType: data.chatType || "",
     };
 
     const message = await createMessage(env, messageDto);
@@ -139,62 +127,66 @@ export class WebSocketHandler {
       content: message.content || "Đã gửi hình ảnh",
       type: NotificationType.NEW_MESSAGE,
     });
-    const senderName = message.user.name;
-
-    // Quan trọng: Lấy thông tin conversation để biết clientId
-    const conversation = await getMessageByConversationId(env, conversationId);
+    const conversation = await getByConversationId(env, conversationId);
     if (!conversation) {
       socket.send(JSON.stringify({ error: "Conversation not found" }));
       return;
     }
 
-    // Lấy ID của client trong cuộc trò chuyện này
+    const senderName = message.user.name;
     const clientId = conversation.userId;
 
     // Kiểm tra xem đây có phải là tin nhắn đầu tiên của client không
     if (!isAdmin) {
-      const existingMessages = await getAllMessage(env, conversationId);
-      const isFirstMessage = existingMessages?.messages?.length === 1; // Nếu chỉ có 1 tin nhắn (tin nhắn hiện tại)
+      const isFirstMessage = conversation?.messages?.length === 1;
 
+      console.log("isFirstMessage", isFirstMessage);
       if (isFirstMessage) {
         try {
           // Lấy danh sách admin của business
-          const admin = await getUserById(env, businessId);
-          if (admin && admin.role === "ADMIN") {
+          const admins = await getAllUserAdminByBusinessId(env, businessId);
+          if (admins && admins.length > 0) {
             // Tạo thông báo về cuộc trò chuyện mới cho tất cả admin
             await createNewNotification(env, {
               conversationId,
               title: "Cuộc trò chuyện mới cần xử lý",
               content: `${senderName} đã bắt đầu cuộc trò chuyện mới. Nhấn để nhận xử lý.`,
-              type: NotificationType.CONVERSATION_NEW
+              type: NotificationType.CONVERSATION_NEW,
             });
 
-            // Gửi thông báo realtime qua WebSocket cho tất cả admin
             const notifyData = {
               businessId,
               type: NotificationType.CONVERSATION_NEW,
               senderType: "CLIENT",
-              targetRole: "admin", // Gửi cho tất cả admin
+              targetRole: "admin",
               payload: {
                 conversationId,
                 guestName: senderName,
                 message: "Cuộc trò chuyện mới cần xử lý",
                 timestamp: new Date().toISOString(),
-                action: "ASSIGN_CONVERSATION" // Thêm action để frontend biết đây là thông báo có thể nhận
               },
             };
 
-            const notificationRoomId = env.NOTIFICATION_ROOM.idFromName(businessId);
-            const notificationRoomStub = env.NOTIFICATION_ROOM.get(notificationRoomId);
+            const notificationRoomId =
+              env.NOTIFICATION_ROOM.idFromName(businessId);
+            const notificationRoomStub =
+              env.NOTIFICATION_ROOM.get(notificationRoomId);
 
             await notificationRoomStub.fetch("https://dummy/notify", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify(notifyData),
             });
+
+            console.log(
+              `Notification sent to ${admins.length} admins for new conversation`
+            );
+          } else {
+            console.warn(`No admins found for business ${businessId}`);
           }
         } catch (error) {
-          console.error("Error handling new conversation:", error);
+          console.error("Error handling new conversation notification:", error);
+          // Continue with message sending even if notification fails
         }
       }
     }
@@ -228,33 +220,43 @@ export class WebSocketHandler {
       targetUserId = clientId;
       targetRole = "client";
     } else {
-      // Nếu client gửi, target là tất cả admin của business
-      targetRole = "admin";
+      const adminAssignment = await findActiveByConversationId(
+        env,
+        conversationId
+      );
+      if (adminAssignment) {
+        targetUserId = adminAssignment.adminId;
+        targetRole = "admin";
+      }
     }
 
     // Gửi thông báo tới NotificationRoom DO (cho cả online và offline)
-    const notifyData = {
-      businessId,
-      type: NotificationType.NEW_MESSAGE,
-      senderType: isAdmin ? "ADMIN" : "CLIENT",
-      targetUserId: targetUserId,
-      targetRole: targetRole,
-      payload: {
-        conversationId,
-        guestName: senderName,
-        message: message.content || "Đã gửi hình ảnh",
-        timestamp: message.createdAt || new Date().toISOString(),
-      },
-    };
+    if (targetUserId && targetRole) {
+      // Gửi thông báo tới NotificationRoom DO (cho cả online và offline)
+      const notifyData = {
+        businessId,
+        type: NotificationType.NEW_MESSAGE,
+        senderType: isAdmin ? "ADMIN" : "CLIENT",
+        targetUserId: targetUserId,
+        targetRole: targetRole,
+        payload: {
+          conversationId,
+          guestName: senderName,
+          message: message.content || "Đã gửi hình ảnh",
+          timestamp: message.createdAt || new Date().toISOString(),
+        },
+      };
 
-    const notificationRoomId = env.NOTIFICATION_ROOM.idFromName(businessId);
-    const notificationRoomStub = env.NOTIFICATION_ROOM.get(notificationRoomId);
+      const notificationRoomId = env.NOTIFICATION_ROOM.idFromName(businessId);
+      const notificationRoomStub =
+        env.NOTIFICATION_ROOM.get(notificationRoomId);
 
-    await notificationRoomStub.fetch("https://dummy/notify", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(notifyData),
-    });
+      await notificationRoomStub.fetch("https://dummy/notify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(notifyData),
+      });
+    }
   }
   // Handler cho TYPING
   private async handleTyping(

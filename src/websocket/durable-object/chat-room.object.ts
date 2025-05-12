@@ -5,7 +5,6 @@ import { WebSocketHandler } from "../handler/websocket.handler";
 
 export class ChatRoom implements DurableObject {
   private sessions: Map<string, WebSocket> = new Map();
-  private unreadCountMap: Map<string, number> = new Map();
   private state: DurableObjectState;
   private env: Env;
   private conversationId: string | null = null;
@@ -15,16 +14,10 @@ export class ChatRoom implements DurableObject {
     this.state = state;
     this.env = env;
     this.handle = new WebSocketHandler(this.sessions);
-    // để đảm bảo đồng bộ hóa an toàn khi khởi tạo
+    // Nó đảm bảo rằng các request đến DO không được xử lý đồng thời trong lúc hàm async bên trong đang chạy — giúp tránh race condition (lỗi do chạy song song).
     this.state.blockConcurrencyWhile(async () => {
       const stored = await this.state.storage.get("conversationId");
       this.conversationId = stored as string | null;
-      const unreadCountStored = await this.state.storage.get("unreadCountMap");
-      if (unreadCountStored) {
-        this.unreadCountMap = new Map(
-          Object.entries(unreadCountStored as Record<string, number>)
-        );
-      }
     });
   }
 

@@ -15,18 +15,13 @@ export const assignAdminToConversation = async (
   conversationId: string,
   adminId: string
 ): Promise<AdminAssignment> => {
-  const prisma = getPrismaClient(env);
-
   const currentAssignment = await findActiveByConversationId(
     env,
     conversationId
   );
 
   if (currentAssignment) {
-    await update(env, currentAssignment.id, {
-      status: AssignmentStatus.TRANSFERRED,
-      unassignedAt: new Date(),
-    });
+    throw new Error("Conversation already has an active assignment");
   }
 
   const newAssignment = await create(env, {

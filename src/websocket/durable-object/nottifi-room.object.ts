@@ -150,90 +150,20 @@ export class NotificationRoom implements DurableObject {
           targetRole,
         } = (await request.json()) as NotificationData;
 
-        console.log("Notification request received:", {
-          businessId,
-          type,
-          payload,
-          senderType,
-          targetUserId,
-          targetRole,
-        });
-
+        // Validate businessId
         if (!businessId) {
           return new Response("Business ID is required", { status: 400 });
         }
 
-        // Log all business sessions for debugging
-        console.log("All business sessions:", {
-          businessIds: Array.from(this.businessSessions.keys()),
-          sessions: Object.fromEntries(
-            Array.from(this.businessSessions.entries()).map(([id, session]) => [
-              id,
-              {
-                admin: Array.from(session.admin),
-                client: Array.from(session.client),
-              },
-            ])
-          ),
-        });
-
+        // Get business session
         const businessSession = this.businessSessions.get(businessId);
-        console.log("Target business session:", {
-          businessId,
-          exists: !!businessSession,
-          adminCount: businessSession?.admin.size || 0,
-          clientCount: businessSession?.client.size || 0,
-        });
-
-        if (businessSession) {
-          // Xác định danh sách người nhận dựa trên targetRole
-          const targetRoleSet =
-            businessSession[targetRole as keyof typeof businessSession];
-          let notifiedCount = 0;
-
-          console.log("Target role set:", {
-            role: targetRole,
-            size: targetRoleSet?.size || 0,
-            members: Array.from(targetRoleSet || []),
-          });
-
-          for (const identifier of targetRoleSet || []) {
-            // Nếu có targetUserId, chỉ gửi cho user đó
-            if (targetUserId && !identifier.includes(targetUserId)) {
-              console.log(`Skipping session ${identifier}: not target user`);
-              continue;
-            }
-
-            const socket = this.sessions.get(identifier);
-            console.log(
-              `Socket for ${identifier}:`,
-              socket ? "Found" : "Not found",
-              socket?.readyState === WebSocket.OPEN
-                ? "and OPEN"
-                : "but not OPEN"
-            );
-
-            if (socket && socket.readyState === WebSocket.OPEN) {
-              const notify = JSON.stringify({
-                type,
-                payload,
-                receivedAt: new Date().toISOString(),
-              });
-
-              console.log(`Sending notification to ${identifier}`);
-              socket.send(notify);
-              notifiedCount++;
-            } else {
-              console.log(`Socket for ${identifier} not available or closed`);
-            }
-          }
-
+        if (!businessSession) {
+          console.log(`No active sessions found for business: ${businessId}`);
           return new Response(
             JSON.stringify({
-              success: notifiedCount > 0,
-              notifiedCount,
-              message:
-                notifiedCount === 0 ? "No active sessions found" : undefined,
+              success: false,
+              message: "No active sessions found for this business",
+              storedInDatabase: true,
             }),
             {
               headers: { "Content-Type": "application/json" },
@@ -241,11 +171,75 @@ export class NotificationRoom implements DurableObject {
           );
         }
 
+        // Log business session status
+        console.log("Business session status:", {
+          businessId,
+          adminCount: businessSession.admin.size,
+          clientCount: businessSession.client.size,
+          totalSessions: this.sessions.size,
+        });
+
+        let notifiedCount = 0;
+        let failedCount = 0;
+
+        // Nếu có targetUserId, chỉ gửi cho user đó trong business
+        if (targetUserId) {
+          const targetIdentifier = `${targetRole}:${targetUserId}`;
+          const socket = this.sessions.get(targetIdentifier);
+
+          if (socket && socket.readyState === WebSocket.OPEN) {
+            try {
+              const notify = JSON.stringify({
+                type,
+                payload,
+                businessId,
+                receivedAt: new Date().toISOString(),
+              });
+              socket.send(notify);
+              notifiedCount++;
+            } catch (error) {
+              console.error(
+                `Failed to send notification to ${targetIdentifier}:`,
+                error
+              );
+              failedCount++;
+            }
+          }
+        } else {
+          // Gửi cho tất cả user trong business
+          const allSessions = new Set([...businessSession.admin]);
+
+          for (const identifier of allSessions) {
+            const socket = this.sessions.get(identifier);
+            if (socket && socket.readyState === WebSocket.OPEN) {
+              try {
+                const notify = JSON.stringify({
+                  type,
+                  payload,
+                  businessId,
+                  receivedAt: new Date().toISOString(),
+                });
+                socket.send(notify);
+                notifiedCount++;
+              } catch (error) {
+                console.error(
+                  `Failed to send notification to ${identifier}:`,
+                  error
+                );
+                failedCount++;
+              }
+            }
+          }
+        }
+
         return new Response(
           JSON.stringify({
-            success: false,
-            message: "No active sessions found for this business",
-            storedInDatabase: true,
+            success: notifiedCount > 0,
+            notifiedCount,
+            failedCount,
+            businessId,
+            message:
+              notifiedCount === 0 ? "No active sessions found" : undefined,
           }),
           {
             headers: { "Content-Type": "application/json" },
@@ -257,6 +251,7 @@ export class NotificationRoom implements DurableObject {
           JSON.stringify({
             success: false,
             error: "Failed to process notification",
+            details: error.message,
           }),
           {
             status: 500,

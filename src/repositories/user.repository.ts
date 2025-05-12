@@ -33,6 +33,19 @@ export async function getUserById(env: Env, id: string): Promise<User | null> {
   return user ? new User(user) : null;
 }
 
+export async function getAllUserAdminByBusinessId(
+  env: Env,
+  businessId: string
+): Promise<User[]> {
+  const prisma = getPrismaClient(env);
+  const users = await prisma.user.findMany({
+    where: {
+      businessId,
+      role: UserRole.ADMIN,
+    },
+  });
+  return users.map((user) => new User(user));
+}
 export async function updateUser(env: Env, id: string, data: UpdateUserDto) {
   const prisma = getPrismaClient(env);
   await prisma.user.update({

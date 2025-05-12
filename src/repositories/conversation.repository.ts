@@ -66,10 +66,10 @@ export async function findAllConversations(
           assignments: {
             some: {
               adminId: userId,
-            }
-          }
-        }
-      ]
+            },
+          },
+        },
+      ],
     },
     include: {
       messages: true,
@@ -77,9 +77,9 @@ export async function findAllConversations(
       notification: true,
       assignments: {
         include: {
-          admin: true
-        }
-      }
+          admin: true,
+        },
+      },
     },
     orderBy: {
       createdAt: "desc",

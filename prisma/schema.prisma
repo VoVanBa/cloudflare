@@ -54,6 +54,18 @@ model Conversation {
   @@index([businessId])
 }
 
+model AdminAssignment {
+  id             String           @id @default(cuid())
+  conversationId String
+  adminId        String
+  assignedAt     DateTime         @default(now())
+  status         AssignmentStatus @default(ACTIVE)
+  conversation   Conversation     @relation(fields: [conversationId], references: [id])
+  admin          User             @relation(fields: [adminId], references: [id])
+
+  @@unique([conversationId, status])
+}
+
 model ConversationRead {
   id             String       @id @default(cuid())
   userId         String
@@ -71,7 +83,7 @@ model Notification {
   userId         String?
   title          String
   content        String
-  type           NotificationType @default(NEW_MESSAGE)
+  type           NotificationType @default(CONVERSATION_NEW)
   isRead         Boolean          @default(false)
   createdAt      DateTime         @default(now())
   user           User?            @relation(fields: [userId], references: [id])
@@ -115,20 +127,8 @@ model Media {
   messages   MessageOnMedia[]
 }
 
-model AdminAssignment {
-  id             String           @id @default(cuid())
-  conversationId String
-  adminId        String
-  assignedAt     DateTime         @default(now())
-  status         AssignmentStatus @default(ACTIVE)
-  conversation   Conversation     @relation(fields: [conversationId], references: [id])
-  admin          User             @relation(fields: [adminId], references: [id])
-}
-
 enum NotificationType {
-  NEW_MESSAGE
   SYSTEM
-  MESSAGE_READ
   CONVERSATION_NEW
   OTHER
 }

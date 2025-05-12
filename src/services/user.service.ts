@@ -118,3 +118,11 @@ export const getUserDetails = async (env: Env, id: string) => {
   if (!user) throw new Error("User not found");
   return user;
 };
+
+export const getAllUserAdminByBusinessId = async (
+  env: Env,
+  businessId: string
+) => {
+  const users = await getAllUserAdminByBusinessId(env, businessId);
+  return users;
+};

@@ -78,11 +78,7 @@ export const getAllConversations = async (
 
   const conversationsWithUnreadCount = await Promise.all(
     conversationsWithMessages.map(async (conversation) => {
-      const unreadCount = await getUnreadCount(
-        env,
-        conversation.id,
-        conversation.userId
-      );
+      const unreadCount = await getUnreadCount(env, conversation.id, userId);
       return {
         id: conversation.id,
         name: conversation.user?.name || "Anonymous Guest",
@@ -151,7 +147,7 @@ export const deleteConversationbyId = async (
 ): Promise<any> => {
   await deleteConversation(env, conversationId);
 };
-export const getMessageByConversationId = async (
+export const getByConversationId = async (
   env: Env,
   messageId: string
 ): Promise<any> => {
