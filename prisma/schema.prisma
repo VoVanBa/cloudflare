@@ -30,10 +30,11 @@ model Business {
   id            String         @id @default(cuid())
   name          String
   users         User[]
-  conversations Conversation[]
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
   deletedAt     DateTime?
+  conversations Conversation[]
+  notification  Notification[]
 }
 
 model Conversation {
@@ -81,6 +82,7 @@ model Notification {
   id             String           @id @default(cuid())
   conversationId String?
   userId         String?
+  businessId     String?
   title          String
   content        String
   type           NotificationType @default(CONVERSATION_NEW)
@@ -88,6 +90,7 @@ model Notification {
   createdAt      DateTime         @default(now())
   user           User?            @relation(fields: [userId], references: [id])
   conversation   Conversation?    @relation(fields: [conversationId], references: [id])
+  business       Business?        @relation(fields: [businessId], references: [id])
 }
 
 model Message {

@@ -1,5 +1,6 @@
 import { Name, name } from "drizzle-orm";
 import { CreateConversationRequestDto } from "../dtos/request/conversation.dto";
+import { CONVERSATION_ERRORS } from "../constants/errors";
 import {
   create,
   deleteConversation,
@@ -30,7 +31,7 @@ export const getConversationMessage = async (
 ): Promise<{ messages: MessageResponseDto[]; totalCount: number }> => {
   const conversation = await findConversationById(env, conversationId);
   if (!conversation) {
-    throw new Error("Conversation not found");
+    throw new Error(CONVERSATION_ERRORS.CONVERSATION_NOT_FOUND);
   }
 
   const allMessages = conversation.messages;
@@ -123,7 +124,7 @@ export const updateConversationCreateAt = async (
 ): Promise<any> => {
   const conversation = await findConversationById(env, id);
   if (!conversation) {
-    throw new Error("Conversation not found");
+    throw new Error(CONVERSATION_ERRORS.CONVERSATION_NOT_FOUND);
   }
   updateCreateAt(env, id);
   return conversation;
@@ -136,7 +137,7 @@ export const updateUserConversation = async (
 ) => {
   const conversation = await findConversationById(env, conversationId);
   if (!conversation) {
-    throw new Error("Conversation not found");
+    throw new Error(CONVERSATION_ERRORS.CONVERSATION_NOT_FOUND);
   }
   const update = await linkConversationWithUser(env, conversationId, userId);
 };

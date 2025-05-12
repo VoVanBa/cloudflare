@@ -19,9 +19,9 @@ const adminAssignmentRoute = new Hono<{ Bindings: Env }>();
 adminAssignmentRoute.use("*", checkRole([UserRole.ADMIN]));
 
 // Assign admin to conversation
-adminAssignmentRoute.post("/assign", async (c: ContextWithUser) => {
+adminAssignmentRoute.post("/assign/:conversationId", async (c: ContextWithUser) => {
   try {
-    const { conversationId } = await c.req.json();
+    const conversationId = c.req.param("conversationId");
     const user = c.user;
 
     if (!conversationId) {

@@ -1,8 +1,8 @@
 import { Conversation } from "./../models/conversation";
 import { getPrismaClient } from "../untils/db";
 import { CreateConversationRequestDto } from "../dtos/request/conversation.dto";
-import { ConversationStatus } from "../models/enums";
 import { UpdateConversationRequestDto } from "../dtos/request/admin-assignment.dto";
+import { ConversationStatus } from "@prisma/client";
 
 export async function create(
   env: Env,
@@ -15,6 +15,7 @@ export async function create(
     data: {
       userId: data.userId,
       businessId: data.businessId,
+      status: ConversationStatus.PENDING,
     },
     include: {
       messages: true,
@@ -149,5 +150,17 @@ export async function updateCreateAt(
     data: {
       createdAt: new Date(),
     },
+  });
+}
+
+export async function updateConversationStatus(
+  env: Env,
+  conversationId: string,
+  status: ConversationStatus
+) {
+  const prisma = getPrismaClient(env);
+  await prisma.conversation.update({
+    where: { id: conversationId },
+    data: { status: status },
   });
 }

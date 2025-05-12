@@ -1,5 +1,11 @@
+import { MEDIA_ERRORS } from "../constants/errors";
 import { createMany } from "../repositories/media.repository";
 import { getCloudinaryConfig } from "../untils/cloudinary";
+
+interface CloudinaryResponse {
+  secure_url: string;
+  [key: string]: any;
+}
 
 export const uploadMultipleImagesToCloudinary = async (
   files: File[],
@@ -29,10 +35,12 @@ export const uploadMultipleImagesToCloudinary = async (
 
       if (!res.ok) {
         const error = await res.json();
-        throw new Error(`Upload failed: ${JSON.stringify(error)}`);
+        throw new Error(
+          `${MEDIA_ERRORS.UPLOAD_FAILED}: ${JSON.stringify(error)}`
+        );
       }
 
-      const result = await res.json();
+      const result = (await res.json()) as CloudinaryResponse;
 
       return {
         cloudinary: result,

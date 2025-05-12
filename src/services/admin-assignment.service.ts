@@ -1,6 +1,7 @@
 import { AssignmentStatus, ConversationStatus } from "../models/enums";
 import { AdminAssignment } from "../models/admin-assignment";
 import { getPrismaClient } from "../untils/db";
+import { CONVERSATION_ERRORS } from "../constants/errors";
 import {
   create,
   findActiveByConversationId,
@@ -9,6 +10,7 @@ import {
   findInDateRange,
   update,
 } from "../repositories/admin-assignment.repository";
+import { updateConversationStatus } from "../repositories/conversation.repository";
 
 export const assignAdminToConversation = async (
   env: Env,
@@ -21,13 +23,15 @@ export const assignAdminToConversation = async (
   );
 
   if (currentAssignment) {
-    throw new Error("Conversation already has an active assignment");
+    throw new Error(CONVERSATION_ERRORS.CONVERSATION_ALREADY_ASSIGNED);
   }
 
   const newAssignment = await create(env, {
     conversationId,
     adminId,
   });
+
+  await updateConversationStatus(env, conversationId, ConversationStatus.OPEN);
 
   return newAssignment;
 };

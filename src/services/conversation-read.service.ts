@@ -1,3 +1,4 @@
+import { CONVERSATION_ERRORS } from "../constants/errors";
 import {
   findConversationRead,
   updateConversationRead,
@@ -20,7 +21,7 @@ export async function markConversationAsRead(
     return conversationRead;
   } catch (error) {
     console.error("Error marking conversation as read:", error);
-    throw new Error("Failed to mark conversation as read");
+    throw new Error(CONVERSATION_ERRORS.FAILED_TO_MARK_AS_READ);
   }
 }
 

@@ -142,6 +142,8 @@ export class ChatRoom implements DurableObject {
     if (this.sessions.size === 0) {
       const cleanupTime = Date.now() + 1000 * 60 * 5; // 5 phút nữa
       await this.state.storage.put("cleanupTime", cleanupTime);
+      // Đặt alarm để tự động cleanup
+      await this.state.storage.setAlarm(cleanupTime);
     }
   }
 

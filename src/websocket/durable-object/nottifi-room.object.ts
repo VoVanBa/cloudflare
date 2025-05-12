@@ -23,17 +23,56 @@ export class NotificationRoom implements DurableObject {
     this.env = env;
   }
 
+  async checkCleanup() {
+    // Kiểm tra nếu không còn kết nối nào cho business
+    let hasActiveConnections = false;
+    for (const [businessId, sessions] of this.businessSessions) {
+      if (sessions.admin.size > 0 || sessions.client.size > 0) {
+        hasActiveConnections = true;
+        break;
+      }
+    }
+
+    if (!hasActiveConnections) {
+      const cleanupTime = Date.now() + 1000 * 60 * 5; // 5 phút nữa
+      await this.state.storage.put("cleanupTime", cleanupTime);
+      await this.state.storage.setAlarm(cleanupTime);
+    }
+  }
+
+  async alarm() {
+    const cleanupTime = (await this.state.storage.get("cleanupTime")) as number;
+
+    // Nếu chưa tới thời gian cleanup, không làm gì
+    if (Date.now() < cleanupTime) return;
+
+    // Kiểm tra lại xem có còn kết nối nào không
+    let hasActiveConnections = false;
+    for (const [businessId, sessions] of this.businessSessions) {
+      if (sessions.admin.size > 0 || sessions.client.size > 0) {
+        hasActiveConnections = true;
+        break;
+      }
+    }
+
+    // Nếu không còn kết nối nào, thực hiện cleanup
+    if (!hasActiveConnections) {
+      console.log("Cleaning up NotificationRoom Durable Object");
+      this.businessSessions.clear();
+      this.sessions.clear();
+      await this.state.storage.delete("cleanupTime");
+    }
+  }
+
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
     console.log("NotificationRoom: Request URL:", url.toString());
 
-    // Handle new WebSocket connection
     if (url.pathname === "/connect") {
       if (request.headers.get("Upgrade")?.toLowerCase() !== "websocket") {
         return new Response("Expected Upgrade: websocket", { status: 426 });
       }
 
-      // Get token and businessId from query parameters
       const token = url.searchParams.get("token");
       const businessId = url.searchParams.get("businessId");
 
@@ -128,6 +167,9 @@ export class NotificationRoom implements DurableObject {
             client: Array.from(businessSession.client),
             totalSessions: this.sessions.size,
           });
+
+          // Check if cleanup is needed
+          this.checkCleanup();
         });
 
         // Return the client end of the WebSocket
@@ -157,30 +199,6 @@ export class NotificationRoom implements DurableObject {
 
         // Get business session
         const businessSession = this.businessSessions.get(businessId);
-        if (!businessSession) {
-          console.log(`No active sessions found for business: ${businessId}`);
-          return new Response(
-            JSON.stringify({
-              success: false,
-              message: "No active sessions found for this business",
-              storedInDatabase: true,
-            }),
-            {
-              headers: { "Content-Type": "application/json" },
-            }
-          );
-        }
-
-        // Log business session status
-        console.log("Business session status:", {
-          businessId,
-          adminCount: businessSession.admin.size,
-          clientCount: businessSession.client.size,
-          totalSessions: this.sessions.size,
-        });
-
-        let notifiedCount = 0;
-        let failedCount = 0;
 
         // Nếu có targetUserId, chỉ gửi cho user đó trong business
         if (targetUserId) {
@@ -196,13 +214,11 @@ export class NotificationRoom implements DurableObject {
                 receivedAt: new Date().toISOString(),
               });
               socket.send(notify);
-              notifiedCount++;
             } catch (error) {
               console.error(
                 `Failed to send notification to ${targetIdentifier}:`,
                 error
               );
-              failedCount++;
             }
           }
         } else {
@@ -220,31 +236,15 @@ export class NotificationRoom implements DurableObject {
                   receivedAt: new Date().toISOString(),
                 });
                 socket.send(notify);
-                notifiedCount++;
               } catch (error) {
                 console.error(
                   `Failed to send notification to ${identifier}:`,
                   error
                 );
-                failedCount++;
               }
             }
           }
         }
-
-        return new Response(
-          JSON.stringify({
-            success: notifiedCount > 0,
-            notifiedCount,
-            failedCount,
-            businessId,
-            message:
-              notifiedCount === 0 ? "No active sessions found" : undefined,
-          }),
-          {
-            headers: { "Content-Type": "application/json" },
-          }
-        );
       } catch (error) {
         console.error("Error processing notification:", error);
         return new Response(

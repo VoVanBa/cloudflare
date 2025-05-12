@@ -1,6 +1,7 @@
 import { CreateUserDto, UpdateUserDto } from "../dtos/request/user.dto";
 import { LoginResponseDto } from "../dtos/response/auth/login.dto";
 import ms from "ms";
+import { USER_ERRORS } from "../constants/errors";
 import {
   createUser,
   getUserByEmail,
@@ -9,15 +10,16 @@ import {
 } from "../repositories/user.repository";
 import { signToken, verifyToken } from "../untils/jwt";
 import * as bcrypt from "bcryptjs";
+
 export const validateUser = async (env: Env, email: string) => {
   const user = await getUserByEmail(env, email);
-  if (!user) throw new Error("User not found");
+  if (!user) throw new Error(USER_ERRORS.USER_NOT_FOUND);
   return user;
 };
 
 export const register = async (env: Env, data: CreateUserDto) => {
   const existingUser = await getUserByEmail(env, data.email);
-  if (existingUser) throw new Error("User already exists");
+  if (existingUser) throw new Error(USER_ERRORS.USER_ALREADY_EXISTS);
   const hashedPassword = await hashPassword(data.password);
   const user = await createUser(env, {
     ...data,
@@ -36,17 +38,17 @@ export const login = async (
 ): Promise<any> => {
   console.log("login", email, password);
   const user = await getUserByEmail(env, email);
-  if (!user) throw new Error("User not found");
+  if (!user) throw new Error(USER_ERRORS.USER_NOT_FOUND);
 
   const check = await comparePassword(password, user.password);
-  if (!check) throw new Error("Invalid password");
+  if (!check) throw new Error(USER_ERRORS.INVALID_PASSWORD);
   const payload = {
     id: user.id,
     email: user.email,
     expiresIn: ms("1h"),
   };
   const token = await signToken(payload);
-  if (!token) throw new Error("Failed to generate token");
+  if (!token) throw new Error(USER_ERRORS.FAILED_TO_GENERATE_TOKEN);
   return {
     token,
     user: {
@@ -57,9 +59,8 @@ export const login = async (
 };
 
 export const validate = async (token: string) => {
-  // const header = token.split(" ")[1];
   const payload = await verifyToken(token);
-  if (!payload) throw new Error("Invalid token");
+  if (!payload) throw new Error(USER_ERRORS.INVALID_TOKEN);
   return payload;
 };
 
@@ -74,10 +75,10 @@ export const getUserByToken = async (env: Env, token: string): Promise<any> => {
   console.log("payload", payload);
 
   if (typeof payload.id !== "string") {
-    throw new Error("Invalid token payload: id is not a string");
+    throw new Error(USER_ERRORS.INVALID_TOKEN_PAYLOAD);
   }
   const user = await getUserById(env, payload.id);
-  if (!user) throw new Error("User not found");
+  if (!user) throw new Error(USER_ERRORS.USER_NOT_FOUND);
   return user;
 };
 
@@ -91,7 +92,7 @@ export const comparePassword = async (
 
 export const getUser = async (env: Env, id: string) => {
   const user = await getUserById(env, id);
-  if (!user) throw new Error("User not found");
+  if (!user) throw new Error(USER_ERRORS.USER_NOT_FOUND);
   return user;
 };
 

@@ -20,6 +20,7 @@ import { assignAdminToConversation } from "../../services/admin-assignment.servi
 import { findActiveByConversationId } from "../../repositories/admin-assignment.repository";
 import { WebSocketMessage } from "../../dtos/request/websocket-message.dto";
 import { MessageType } from "../../constants/message-type.enum";
+import { WEBSOCKET_ERRORS } from "../../constants/errors";
 
 export class WebSocketHandler {
   private sessions: Map<string, WebSocket>;
@@ -41,7 +42,9 @@ export class WebSocketHandler {
     try {
       const data: WebSocketMessage = JSON.parse(message);
       if (!data.type) {
-        socket.send(JSON.stringify({ error: "Missing message type" }));
+        socket.send(
+          JSON.stringify({ error: WEBSOCKET_ERRORS.MISSING_MESSAGE_TYPE })
+        );
         return;
       }
 
@@ -85,11 +88,15 @@ export class WebSocketHandler {
           );
           break;
         default:
-          socket.send(JSON.stringify({ error: "Unknown message type" }));
+          socket.send(
+            JSON.stringify({ error: WEBSOCKET_ERRORS.UNKNOWN_MESSAGE_TYPE })
+          );
       }
     } catch (err) {
       console.error("Error handling WebSocket message:", err);
-      socket.send(JSON.stringify({ error: "Internal server error" }));
+      socket.send(
+        JSON.stringify({ error: WEBSOCKET_ERRORS.INTERNAL_SERVER_ERROR })
+      );
     }
   }
 
@@ -106,7 +113,7 @@ export class WebSocketHandler {
   ) {
     if (!data.content && (!data.mediaIds || data.mediaIds.length === 0)) {
       socket.send(
-        JSON.stringify({ error: "Missing message content or media" })
+        JSON.stringify({ error: WEBSOCKET_ERRORS.MISSING_MESSAGE_CONTENT })
       );
       return;
     }
@@ -121,12 +128,6 @@ export class WebSocketHandler {
     };
 
     const message = await createMessage(env, messageDto);
-    await createNewNotification(env, {
-      conversationId,
-      title: "Tin nhắn mới",
-      content: message.content || "Đã gửi hình ảnh",
-      type: NotificationType.NEW_MESSAGE,
-    });
     const conversation = await getByConversationId(env, conversationId);
     if (!conversation) {
       socket.send(JSON.stringify({ error: "Conversation not found" }));
@@ -293,7 +294,9 @@ export class WebSocketHandler {
     broadcastExcept: (message: string, excludedId: string) => void
   ) {
     if (!conversationId) {
-      socket.send(JSON.stringify({ error: "Missing conversation ID" }));
+      socket.send(
+        JSON.stringify({ error: WEBSOCKET_ERRORS.MISSING_CONVERSATION_ID_READ })
+      );
       return;
     }
 
@@ -304,19 +307,7 @@ export class WebSocketHandler {
         conversationId,
         userId
       );
-      const displayName = await getCachedUserName(env, userId);
-      // Tạo thông báo WebSocket cho cuộc trò chuyện hiện tại
-      const readMessage = JSON.stringify({
-        type: MessageType.MESSAGES_READ,
-        conversationId,
-        readBy: displayName,
-        lastReadAt: readRecord.lastReadAt.toISOString(),
-      });
 
-      // Phát thông báo tới tất cả client trong cuộc trò chuyện
-      broadcastExcept(readMessage, `client:${userId}`);
-
-      // Gửi thông báo tới NotificationRoom DO
       const notifyData = {
         businessId,
         type: NotificationType.MESSAGE_READ,
@@ -341,7 +332,9 @@ export class WebSocketHandler {
       });
     } catch (err) {
       console.error("Error marking messages as read:", err);
-      socket.send(JSON.stringify({ error: "Failed to mark messages as read" }));
+      socket.send(
+        JSON.stringify({ error: WEBSOCKET_ERRORS.MARK_AS_READ_FAILED })
+      );
     }
   }
 
@@ -374,7 +367,9 @@ export class WebSocketHandler {
         })
       );
     } else {
-      socket.send(JSON.stringify({ error: "Conversation not found" }));
+      socket.send(
+        JSON.stringify({ error: WEBSOCKET_ERRORS.LOAD_HISTORY_FAILED })
+      );
     }
   }
 
@@ -387,7 +382,6 @@ export class WebSocketHandler {
   ): Promise<void> {
     try {
       const messagesExisting = await getAllMessage(env, conversationId);
-      const unreadCount = await getUnreadCount(env, conversationId, userId);
       if (messagesExisting?.messages) {
         socket.send(
           JSON.stringify({
@@ -403,13 +397,14 @@ export class WebSocketHandler {
                   url: item?.url,
                 })) || [],
             })),
-            unreadCount,
           })
         );
       }
     } catch (err) {
       console.error("Error sending history:", err);
-      socket.send(JSON.stringify({ error: "Failed to load history" }));
+      socket.send(
+        JSON.stringify({ error: WEBSOCKET_ERRORS.LOAD_HISTORY_FAILED })
+      );
     }
   }
 }
