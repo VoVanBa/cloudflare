@@ -20,15 +20,20 @@ export async function createNotification(
   return new Notification(notifi);
 }
 
-export async function getNotificationByConversation(
+export async function getNotificationByBusiness(
   env: Env,
-  conversationId: string
+  businessId: string,
+  page: number = 1,
+  limit: number = 10
 ): Promise<Notification[]> {
   const prisma = getPrismaClient(env);
+  const skip = (page - 1) * limit;
 
   const notifi = await prisma.notification.findMany({
-    where: { conversationId, isRead: false },
+    where: { businessId, isRead: false },
     orderBy: { createdAt: "desc" },
+    skip,
+    take: limit,
   });
 
   return notifi.map((item) => new Notification(item));
@@ -55,11 +60,11 @@ export async function getNotificationsByUserId(
 
 export async function markNotificationAsRead(
   env: Env,
-  notificationId: string[]
+  businessId: string[]
 ): Promise<Notification> {
   const prisma = getPrismaClient(env);
   const notifi = await prisma.notification.updateMany({
-    where: { id: { in: notificationId } },
+    where: { id: { in: businessId } },
     data: { isRead: true },
   });
   return new Notification(notifi);

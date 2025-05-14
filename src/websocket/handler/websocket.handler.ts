@@ -21,13 +21,71 @@ import { findActiveByConversationId } from "../../repositories/admin-assignment.
 import { WebSocketMessage } from "../../dtos/request/websocket-message.dto";
 import { MessageType } from "../../constants/message-type.enum";
 import { WEBSOCKET_ERRORS } from "../../constants/errors";
+import { RATE_LIMIT } from "../../constants/rate-limit.const";
+import { ChatRoom } from "../durable-object/chat-room.object";
+
+interface RateLimitInfo {
+  count: number;
+  lastReset: number;
+}
 
 export class WebSocketHandler {
   private sessions: Map<string, WebSocket>;
+  private context: ChatRoom;
+  private messageRateLimits: Map<string, RateLimitInfo>;
 
-  constructor(sessions: Map<string, WebSocket>) {
+  constructor(sessions: Map<string, WebSocket>, context: ChatRoom) {
     this.sessions = sessions;
+    this.context = context;
+    this.messageRateLimits = new Map();
   }
+
+  private async broadcast(message: string): Promise<void> {
+    await this.context.broadcast(message);
+  }
+
+  private async broadcastExcept(
+    message: string,
+    excludedId: string
+  ): Promise<void> {
+    await this.context.broadcastExcept(message, excludedId);
+  }
+
+  private checkRateLimit(
+    userId: string,
+    rateLimits: Map<string, RateLimitInfo>,
+    maxPerWindow: number
+  ): boolean {
+    const now = Date.now();
+    const limitInfo = rateLimits.get(userId) || { count: 0, lastReset: now };
+
+    // Reset counter if window has passed
+    if (now - limitInfo.lastReset >= RATE_LIMIT.WINDOW) {
+      limitInfo.count = 0;
+      limitInfo.lastReset = now;
+    }
+
+    // Check if limit is exceeded
+    if (limitInfo.count >= maxPerWindow) {
+      return false;
+    }
+
+    // Increment counter
+    limitInfo.count++;
+    rateLimits.set(userId, limitInfo);
+
+    console.log("rateLimits", rateLimits);
+    return true;
+  }
+
+  private isMessageRateLimited(userId: string): boolean {
+    return !this.checkRateLimit(
+      userId,
+      this.messageRateLimits,
+      RATE_LIMIT.MAX_MESSAGES_PER_WINDOW
+    );
+  }
+
   async handleWebSocketMessage(
     socket: WebSocket,
     message: string,
@@ -35,9 +93,7 @@ export class WebSocketHandler {
     conversationId: string,
     userId: string,
     businessId: string,
-    isAdmin: boolean,
-    broadcast: (message: string) => void,
-    broadcastExcept: (message: string, excludedId: string) => void
+    isAdmin: boolean
   ): Promise<void> {
     try {
       const data: WebSocketMessage = JSON.parse(message);
@@ -57,19 +113,7 @@ export class WebSocketHandler {
             conversationId,
             userId,
             businessId,
-            isAdmin,
-            broadcast,
-            broadcastExcept
-          );
-          break;
-        case MessageType.TYPING:
-          await this.handleTyping(
-            socket,
-            data,
-            env,
-            userId,
-            isAdmin,
-            broadcastExcept
+            isAdmin
           );
           break;
         case MessageType.REQUEST_HISTORY:
@@ -82,9 +126,7 @@ export class WebSocketHandler {
             conversationId,
             userId,
             businessId,
-            isAdmin,
-            broadcast,
-            broadcastExcept
+            isAdmin
           );
           break;
         default:
@@ -107,10 +149,20 @@ export class WebSocketHandler {
     conversationId: string,
     userId: string,
     businessId: string,
-    isAdmin: boolean,
-    broadcast: (message: string) => void,
-    broadcastExcept: (message: string, excludedId: string) => void
+    isAdmin: boolean
   ) {
+    // Check rate limit
+    if (this.isMessageRateLimited(userId)) {
+      socket.send(
+        JSON.stringify({
+          error:
+            "Rate limit exceeded. Please wait before sending more messages.",
+          type: "RATE_LIMIT_EXCEEDED",
+        })
+      );
+      return;
+    }
+
     if (!data.content && (!data.mediaIds || data.mediaIds.length === 0)) {
       socket.send(
         JSON.stringify({ error: WEBSOCKET_ERRORS.MISSING_MESSAGE_CONTENT })
@@ -210,7 +262,7 @@ export class WebSocketHandler {
       },
     });
 
-    broadcast(newMessage);
+    await this.broadcast(newMessage);
 
     // Xác định người nhận thông báo
     let targetUserId: string | null = null;
@@ -233,7 +285,6 @@ export class WebSocketHandler {
 
     // Gửi thông báo tới NotificationRoom DO (cho cả online và offline)
     if (targetUserId && targetRole) {
-      // Gửi thông báo tới NotificationRoom DO (cho cả online và offline)
       const notifyData = {
         businessId,
         type: NotificationType.NEW_MESSAGE,
@@ -259,29 +310,6 @@ export class WebSocketHandler {
       });
     }
   }
-  // Handler cho TYPING
-  private async handleTyping(
-    socket: WebSocket,
-    data: WebSocketMessage,
-    env: Env,
-    userId: string,
-    isAdmin: boolean,
-    broadcastExcept: (message: string, excludedId: string) => void
-  ) {
-    try {
-      const senderIdentifier = isAdmin ? `admin:${userId}` : `client:${userId}`;
-      const displayName = await getCachedUserName(env, userId);
-
-      const typingMessage = JSON.stringify({
-        type: MessageType.TYPING,
-        name: displayName,
-        isAdmin,
-      });
-      broadcastExcept(typingMessage, senderIdentifier);
-    } catch (err) {
-      console.error("Error handling TYPING event:", err);
-    }
-  }
 
   private async handleMarkAsRead(
     env: Env,
@@ -289,9 +317,7 @@ export class WebSocketHandler {
     conversationId: string,
     userId: string,
     businessId: string,
-    isAdmin: boolean,
-    broadcast: (message: string) => void,
-    broadcastExcept: (message: string, excludedId: string) => void
+    isAdmin: boolean
   ) {
     if (!conversationId) {
       socket.send(
@@ -312,8 +338,6 @@ export class WebSocketHandler {
         businessId,
         type: NotificationType.MESSAGE_READ,
         senderType: isAdmin ? "ADMIN" : "CLIENT",
-        targetUserId: isAdmin ? null : userId, // Nếu admin đọc thì thông báo cho tất cả client
-        targetRole: isAdmin ? "admin" : "client", // Nếu admin đọc thì thông báo cho client và ngược lại
         payload: {
           conversationId,
           readBy: userId,
@@ -321,15 +345,8 @@ export class WebSocketHandler {
         },
       };
 
-      const notificationRoomId = env.NOTIFICATION_ROOM.idFromName(businessId);
-      const notificationRoomStub =
-        env.NOTIFICATION_ROOM.get(notificationRoomId);
-
-      await notificationRoomStub.fetch("https://dummy/notify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(notifyData),
-      });
+      // Gửi thông báo cho tất cả client trong phòng chat
+      await this.broadcast(JSON.stringify(notifyData));
     } catch (err) {
       console.error("Error marking messages as read:", err);
       socket.send(

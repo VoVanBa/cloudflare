@@ -1,5 +1,9 @@
 import { Hono } from "hono";
-import { fetchNotifications, markAsRead } from "../services/notification.service";
+import {
+  fetchNotifications,
+  fetchNotificationsByBusinessId,
+  markAsRead,
+} from "../services/notification.service";
 
 export const notifiRoute = new Hono<{ Bindings: Env }>();
 
@@ -10,7 +14,7 @@ notifiRoute.get("/", async (c) => {
   const pageSize = parseInt(c.req.query("pageSize") || "10", 10);
 
   try {
-    const notifi = await fetchNotifications(c.env, businessId, page, pageSize);
+    const notifi = await fetchNotificationsByBusinessId(c.env, businessId, page, pageSize);
     return c.json(notifi, 200);
   } catch (error) {
     console.error("Error fetching messages:", error);
@@ -19,7 +23,7 @@ notifiRoute.get("/", async (c) => {
 });
 
 notifiRoute.post("/mark-as-read", async (c) => {
-  const notificationId = c.req.json();
-  const notifi = await markAsRead(c.env, notificationId);
+  const businessId = c.req.json();
+  const notifi = await markAsRead(c.env, businessId);
   return c.json(notifi, 200);
 });

@@ -13,7 +13,7 @@ export class ChatRoom implements DurableObject {
   constructor(state: DurableObjectState, env: Env) {
     this.state = state;
     this.env = env;
-    this.handle = new WebSocketHandler(this.sessions);
+    this.handle = new WebSocketHandler(this.sessions, this);
     // Nó đảm bảo rằng các request đến DO không được xử lý đồng thời trong lúc hàm async bên trong đang chạy — giúp tránh race condition (lỗi do chạy song song).
     this.state.blockConcurrencyWhile(async () => {
       const stored = await this.state.storage.get("conversationId");
@@ -97,10 +97,7 @@ export class ChatRoom implements DurableObject {
         conversationId,
         userId,
         businessId,
-        isAdmin,
-        (message: string) => this.broadcast(message),
-        (message: string, excludedId: string) =>
-          this.broadcastExcept(message, excludedId)
+        isAdmin
       );
     });
 
@@ -115,26 +112,34 @@ export class ChatRoom implements DurableObject {
     });
   }
 
-  broadcast(message: string) {
+  async broadcast(message: string): Promise<void> {
+    const promises: Promise<void>[] = [];
     for (const [id, socket] of this.sessions) {
       try {
         socket.send(message);
+        promises.push(Promise.resolve());
       } catch {
         this.sessions.delete(id);
+        promises.push(Promise.resolve());
       }
     }
+    await Promise.all(promises);
   }
 
-  broadcastExcept(message: string, excludedId: string) {
+  async broadcastExcept(message: string, excludedId: string): Promise<void> {
+    const promises: Promise<void>[] = [];
     for (const [id, socket] of this.sessions) {
       if (id !== excludedId) {
         try {
           socket.send(message);
+          promises.push(Promise.resolve());
         } catch {
           this.sessions.delete(id);
+          promises.push(Promise.resolve());
         }
       }
     }
+    await Promise.all(promises);
   }
 
   async checkCleanup() {

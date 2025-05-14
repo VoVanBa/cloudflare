@@ -44,7 +44,7 @@ model Conversation {
   createdAt    DateTime           @default(now())
   updatedAt    DateTime           @updatedAt
   deletedAt    DateTime?
-  status       ConversationStatus @default(OPEN)
+  status       ConversationStatus @default(PENDING)
   notification Notification[]
   messages     Message[]
   user         User?              @relation(fields: [userId], references: [id])
@@ -131,6 +131,7 @@ model Media {
 }
 
 enum NotificationType {
+  NEW_MESSAGE
   SYSTEM
   CONVERSATION_NEW
   OTHER

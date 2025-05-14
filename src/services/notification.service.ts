@@ -8,6 +8,7 @@ import {
   markNotificationAsRead,
   deleteNotification,
   getNotificationByConversation,
+  getNotificationByBusiness,
 } from "../repositories/notification.repository";
 
 export const createNewNotification = async (
@@ -29,11 +30,11 @@ export const fetchNotifications = async (env: Env, userId: string) => {
   }
 };
 
-export const markAsRead = async (env: Env, notificationId: string) => {
+export const markAsRead = async (env: Env, businessId: string) => {
   try {
-    const notificationIds = await fetchNotificationsByConversationId(
+    const notificationIds = await fetchNotificationsByBusinessId(
       env,
-      notificationId
+      businessId
     );
     return await markNotificationAsRead(
       env,
@@ -52,12 +53,14 @@ export const removeNotification = async (env: Env, notificationId: string) => {
   }
 };
 
-export const fetchNotificationsByConversationId = async (
+export const fetchNotificationsByBusinessId = async (
   env: Env,
-  conversationId: string
+  businessId: string,
+  page: number = 1,
+  limit: number = 10
 ) => {
   try {
-    return await getNotificationByConversation(env, conversationId);
+    return await getNotificationByBusiness(env, businessId, page, limit);
   } catch (error) {
     throw new Error(NOTIFICATION_ERRORS.FETCH_FAILED);
   }
